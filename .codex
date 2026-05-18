@@ -1,0 +1,21 @@
+Project: Reveille
+
+Purpose: Go service for waking stopped homelab containers behind Traefik.
+
+Core behavior:
+- Traefik calls Reveille through `forwardAuth`.
+- Reveille starts stopped targets through Dockhand API.
+- Wait page offers lease durations plus `Never`.
+- Wait page polls status every 5s, then redirects when healthy.
+- Finite leases stop the target again through Dockhand when they expire.
+
+Implementation direction:
+- Use Go for the server, Dockhand client, config, leases, scheduler, templates,
+  and embedded assets.
+- Use plain HTML/CSS/vanilla JS for the wait page; no Node frontend needed.
+
+Read first:
+- `.workflow/` 
+- `README.md`
+- `docs/behavior.md`
+- `docs/handoff.md`
