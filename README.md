@@ -47,8 +47,3 @@ requirements grow substantially.
 
 Runtime behavior, Traefik wiring, Dockhand endpoints, lease handling, and the
 HTTP contract are documented in [docs/behavior.md](docs/behavior.md).
-
-## Build Handoff
-
-Implementation context for starting the initial Go build is documented in
-[docs/handoff.md](docs/handoff.md).

@@ -13,5 +13,5 @@
 - Added Traefik wiring notes for static providers, reusable file-provider
   middleware, protected app routers, and the unprotected `/_reveille/*` route.
 - Added Dockhand API assumptions for container and stack lifecycle calls.
-- Added `docs/handoff.md` as the implementation starting point for the initial
-  Go build.
+- Added `.workflow/handoff.md` as temporary implementation context for the
+  initial Go build.

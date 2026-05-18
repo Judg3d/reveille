@@ -15,7 +15,6 @@ Implementation direction:
 - Use plain HTML/CSS/vanilla JS for the wait page; no Node frontend needed.
 
 Read first:
-- `.workflow/` 
 - `README.md`
 - `docs/behavior.md`
-- `docs/handoff.md`
+- `.workflow/handoff.md` temporary build handoff when present
