@@ -32,11 +32,23 @@ Reveille follows Traefik's static plus dynamic config pattern:
 
 ## Stack
 
+- Go: Reveille service, Dockhand client, config loading, lease scheduler,
+  health checks, templates, and embedded static assets
 - Traefik: reverse proxy, host rules, and middleware execution
 - Dockhand: Docker container and compose stack lifecycle API
-- Reveille: lease tracking, wait UI, health polling, and lifecycle coordination
+- HTML/CSS/vanilla JavaScript: wait page UI served by the Go binary
+
+Go should be enough for the application server. The wait page can use embedded
+templates and a small amount of vanilla JavaScript for 5-second status polling,
+so Reveille should not need a Node, React, or Vite frontend build unless the UI
+requirements grow substantially.
 
 ## Behavior
 
 Runtime behavior, Traefik wiring, Dockhand endpoints, lease handling, and the
 HTTP contract are documented in [docs/behavior.md](docs/behavior.md).
+
+## Build Handoff
+
+Implementation context for starting the initial Go build is documented in
+[docs/handoff.md](docs/handoff.md).
