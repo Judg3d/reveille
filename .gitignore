@@ -13,3 +13,6 @@ hosts/*
 
 # Root-level binary from `go build`; does not ignore cmd/reveille/.
 /reveille
+
+#go build cache
+.cache
