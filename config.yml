@@ -4,9 +4,9 @@ server:
 
 dockhand:
   baseUrl: "http://dockhand:3000"
-  # The Dockhand API token is intentionally not stored in this file.
-  # Set DOCKHAND_API_TOKEN in compose.yml, compose.dev.yml, your shell, or a
-  # local .env file. Reveille reads it from the container environment.
+  # Optional auth: leave DOCKHAND_API_TOKEN empty when Dockhand authentication
+  # is disabled. If your Dockhand deployment requires API auth, set the token
+  # through Compose, your shell, or a deployment secret store.
   environmentId: 1
   timeout: "30s"
 

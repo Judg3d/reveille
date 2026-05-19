@@ -7,7 +7,7 @@ services:
     container_name: reveille-dev
     restart: unless-stopped
     environment:
-      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:-dev-token}
+      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:-}
     command:
       - -config
       - /etc/reveille/config.yml

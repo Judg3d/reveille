@@ -76,13 +76,11 @@ docker compose -f compose.dev.yml up --build
 
 Compose automatically reads a local `.env` file for variable substitution.
 Reveille does not require a committed `.env`; use one only for local secrets and
-deployment-specific values. Start from `.env.example`, then set
-`DOCKHAND_API_TOKEN`. The default image is
-`ghcr.io/your-org/reveille:${REVEILLE_TAG:-latest}` and can be
-overridden with `REVEILLE_IMAGE`.
+deployment-specific values. Start from `.env.example` if you want local
+overrides. The default image is
+`ghcr.io/your-org/reveille:${REVEILLE_TAG:-latest}`.
 
-The committed `config.yml` does not store the Dockhand API token. Reveille reads
-`DOCKHAND_API_TOKEN` from the container environment, which Compose supplies from
-`compose.yml` or `compose.dev.yml`. You may still set `dockhand.apiToken`
-explicitly in config for non-Compose deployments, but avoid committing real
-tokens.
+Dockhand auth is optional. Reveille sends a bearer token only when
+`DOCKHAND_API_TOKEN` or `dockhand.apiToken` is set. Leave it blank when
+Dockhand authentication is disabled; set it only if your Dockhand instance
+requires API auth.
