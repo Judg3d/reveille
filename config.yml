@@ -4,12 +4,28 @@ server:
 
 dockhand:
   baseUrl: "http://dockhand:3000"
-  apiToken: "${DOCKHAND_API_TOKEN}"
+  # The Dockhand API token is intentionally not stored in this file.
+  # Set DOCKHAND_API_TOKEN in compose.yml, compose.dev.yml, your shell, or a
+  # local .env file. Reveille reads it from the container environment.
   environmentId: 1
   timeout: "30s"
 
 defaults:
+  # Default lease selected on the wait page.
+  #
+  # Lease durations use Go duration syntax:
+  # - "2m" means 2 minutes
+  # - "5h" means 5 hours
+  # - "4h3m" means 4 hours and 3 minutes
+  # - "1h30m" and "2m30s" are also valid
+  #
+  # Supported units are "ns", "us" or "µs", "ms", "s", "m", and "h".
+  # Use "never" to leave the target running until it is manually stopped or
+  # replaced by a finite lease.
   lease: "2h"
+
+  # Lease choices shown to users on the wait page. Add, remove, or reorder
+  # these values freely. Each value must be a valid duration or "never".
   leaseOptions:
     - "30m"
     - "1h"

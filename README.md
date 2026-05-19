@@ -61,7 +61,8 @@ endpoint returns `204 No Content`.
 
 ## Compose
 
-Production-style Compose pulls the image from GitLab's container registry:
+Production-style Compose pulls the image from the configured container
+registry:
 
 ```sh
 docker compose -f compose.yml up -d
@@ -76,9 +77,12 @@ docker compose -f compose.dev.yml up --build
 Compose automatically reads a local `.env` file for variable substitution.
 Reveille does not require a committed `.env`; use one only for local secrets and
 deployment-specific values. Start from `.env.example`, then set
-`DOCKHAND_API_TOKEN` and, for `compose.yml` outside GitLab CI,
-`CI_REGISTRY_IMAGE`.
+`DOCKHAND_API_TOKEN`. The default image is
+`ghcr.io/your-org/reveille:${REVEILLE_TAG:-latest}` and can be
+overridden with `REVEILLE_IMAGE`.
 
-The committed `config.yml` uses `${DOCKHAND_API_TOKEN}` for the Dockhand API
-token. Keep the real value in your shell, deployment secret store, or local
-`.env` file.
+The committed `config.yml` does not store the Dockhand API token. Reveille reads
+`DOCKHAND_API_TOKEN` from the container environment, which Compose supplies from
+`compose.yml` or `compose.dev.yml`. You may still set `dockhand.apiToken`
+explicitly in config for non-Compose deployments, but avoid committing real
+tokens.

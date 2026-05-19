@@ -1,6 +1,6 @@
 services:
   reveille:
-    image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/your-group/reveille}:${REVEILLE_TAG:-latest}
+    image: ghcr.io/your-org/reveille:${REVEILLE_TAG:-latest}
     container_name: reveille
     restart: unless-stopped
     environment:
