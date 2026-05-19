@@ -3,4 +3,4 @@
 .env.*
 !.env.example
 compose.yml
-reveille
+/reveille
