@@ -1,0 +1,17 @@
+services:
+  reveille:
+    image: ${CI_REGISTRY_IMAGE:-registry.gitlab.com/your-group/reveille}:${REVEILLE_TAG:-latest}
+    container_name: reveille
+    restart: unless-stopped
+    environment:
+      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:?set DOCKHAND_API_TOKEN in your shell or .env}
+    command:
+      - -config
+      - /etc/reveille/config.yml
+      - -hosts
+      - /etc/reveille/hosts
+    ports:
+      - "${REVEILLE_PORT:-8080}:8080"
+    volumes:
+      - ./config.yml:/etc/reveille/config.yml:ro
+      - ./hosts:/etc/reveille/hosts:ro

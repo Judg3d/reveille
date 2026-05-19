@@ -47,3 +47,38 @@ requirements grow substantially.
 
 Runtime behavior, Traefik wiring, Dockhand endpoints, lease handling, and the
 HTTP contract are documented in [docs/behavior.md](docs/behavior.md).
+
+## Build And Run
+
+```sh
+go test ./...
+go run ./cmd/reveille -config config.yml -hosts hosts
+```
+
+If `config.yml` is missing, Reveille starts with documented defaults. If the
+`hosts/` directory is missing, no hosts are managed and the forward-auth
+endpoint returns `204 No Content`.
+
+## Compose
+
+Production-style Compose pulls the image from GitLab's container registry:
+
+```sh
+docker compose -f compose.yml up -d
+```
+
+Local testing builds the image from this checkout:
+
+```sh
+docker compose -f compose.dev.yml up --build
+```
+
+Compose automatically reads a local `.env` file for variable substitution.
+Reveille does not require a committed `.env`; use one only for local secrets and
+deployment-specific values. Start from `.env.example`, then set
+`DOCKHAND_API_TOKEN` and, for `compose.yml` outside GitLab CI,
+`CI_REGISTRY_IMAGE`.
+
+The committed `config.yml` uses `${DOCKHAND_API_TOKEN}` for the Dockhand API
+token. Keep the real value in your shell, deployment secret store, or local
+`.env` file.

@@ -1,0 +1,20 @@
+services:
+  reveille:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: reveille:dev
+    container_name: reveille-dev
+    restart: unless-stopped
+    environment:
+      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:-dev-token}
+    command:
+      - -config
+      - /etc/reveille/config.yml
+      - -hosts
+      - /etc/reveille/hosts
+    ports:
+      - "${REVEILLE_PORT:-8080}:8080"
+    volumes:
+      - ./config.yml:/etc/reveille/config.yml:ro
+      - ./hosts:/etc/reveille/hosts:ro
