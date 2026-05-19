@@ -14,7 +14,6 @@
         <h1>{{.Host}} is sleeping</h1>
         <p class="copy">Pick how long to keep this service running. Reveille will request start, then redirect automatically when health checks pass.</p>
         <form id="lease-form" class="lease" method="post" action="{{.PublicPath}}/api/lease?host={{.Host}}">
-          <input type="hidden" name="returnTo" value="{{.ReturnTo}}">
           <label for="lease">Timer</label>
           <div class="lease-row">
             <select id="lease" name="lease">
