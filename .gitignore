@@ -2,4 +2,4 @@
 .env
 .env.*
 !.env.example
-reveille
+/reveille
