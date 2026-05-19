@@ -70,3 +70,52 @@ target:
 		t.Fatal("new host missing")
 	}
 }
+
+func TestContainerHostCanUseTargetHostnameAndDockhandHealth(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "app.yml"), []byte(`
+target:
+  type: container
+  id: app
+  environment: prod
+  hostname: app.example.com
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := LoadDir(dir, config.DefaultConfig().Defaults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, ok := store.Lookup("app.example.com")
+	if !ok {
+		t.Fatal("host not found")
+	}
+	if host.Target.Environment != "prod" || host.Target.HealthURL != "" {
+		t.Fatalf("target = %+v", host.Target)
+	}
+}
+
+func TestLoadFileSupportsMultipleTargets(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apps.yml")
+	if err := os.WriteFile(path, []byte(`
+targets:
+  - id: jellyfin
+    environment: homelab
+    hostname: jellyfin.example.com
+  - id: sonarr
+    environment: homelab
+    hostname: sonarr.example.com
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hosts, err := LoadFile(path, config.DefaultConfig().Defaults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hosts) != 2 {
+		t.Fatalf("hosts = %+v", hosts)
+	}
+	if hosts[0].Target.Type != "container" || hosts[1].Host != "sonarr.example.com" {
+		t.Fatalf("hosts = %+v", hosts)
+	}
+}

@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"reveille/internal/hosts"
@@ -18,6 +20,8 @@ type Client struct {
 	token   string
 	envID   int
 	client  *http.Client
+	mu      sync.Mutex
+	envs    map[string]int
 }
 
 type Container struct {
@@ -26,6 +30,12 @@ type Container struct {
 	Name   string   `json:"name"`
 	Status string   `json:"status"`
 	State  string   `json:"state"`
+	Health string   `json:"health"`
+}
+
+type Environment struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 func NewClient(baseURL, token string, envID int, timeout time.Duration) *Client {
@@ -34,62 +44,134 @@ func NewClient(baseURL, token string, envID int, timeout time.Duration) *Client 
 		token:   token,
 		envID:   envID,
 		client:  &http.Client{Timeout: timeout},
+		envs:    map[string]int{},
 	}
 }
 
 func (c *Client) Start(ctx context.Context, target hosts.Target) error {
-	if target.Type == "stack" {
-		return c.do(ctx, http.MethodPost, "/api/stacks/"+url.PathEscape(target.Name)+"/start", nil, nil)
-	}
-	id, err := c.resolveContainer(ctx, target.ID)
+	envID, err := c.envIDFor(ctx, target)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/start", nil, nil)
+	if target.Type == "stack" {
+		return c.do(ctx, http.MethodPost, "/api/stacks/"+url.PathEscape(target.Name)+"/start", envID, nil, nil)
+	}
+	id, err := c.resolveContainer(ctx, target.ID, envID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/start", envID, nil, nil)
 }
 
 func (c *Client) Stop(ctx context.Context, target hosts.Target) error {
-	if target.Type == "stack" {
-		return c.do(ctx, http.MethodPost, "/api/stacks/"+url.PathEscape(target.Name)+"/stop", nil, nil)
-	}
-	id, err := c.resolveContainer(ctx, target.ID)
+	envID, err := c.envIDFor(ctx, target)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/stop", nil, nil)
+	if target.Type == "stack" {
+		return c.do(ctx, http.MethodPost, "/api/stacks/"+url.PathEscape(target.Name)+"/stop", envID, nil, nil)
+	}
+	id, err := c.resolveContainer(ctx, target.ID, envID)
+	if err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/stop", envID, nil, nil)
 }
 
-func (c *Client) Containers(ctx context.Context) ([]Container, error) {
+func (c *Client) Healthy(ctx context.Context, target hosts.Target) (bool, error) {
+	if target.Type != "container" {
+		return false, fmt.Errorf("dockhand health is only supported for container targets")
+	}
+	envID, err := c.envIDFor(ctx, target)
+	if err != nil {
+		return false, err
+	}
+	container, ok, err := c.findContainer(ctx, target.ID, envID)
+	if err != nil || !ok {
+		return false, err
+	}
+	state := strings.ToLower(container.State)
+	status := strings.ToLower(container.Status)
+	health := strings.ToLower(container.Health)
+	running := state == "running" || strings.HasPrefix(status, "up")
+	if !running {
+		return false, nil
+	}
+	if health == "" || health == "none" {
+		return true, nil
+	}
+	return health == "healthy", nil
+}
+
+func (c *Client) Containers(ctx context.Context, envID int) ([]Container, error) {
 	var out []Container
-	if err := c.do(ctx, http.MethodGet, "/api/containers", url.Values{"all": {"true"}}, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/api/containers", envID, url.Values{"all": {"true"}}, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *Client) resolveContainer(ctx context.Context, configured string) (string, error) {
-	if configured == "" {
-		return "", fmt.Errorf("container id is empty")
+func (c *Client) resolveContainer(ctx context.Context, configured string, envID int) (string, error) {
+	container, ok, err := c.findContainer(ctx, configured, envID)
+	if err != nil || !ok {
+		return configured, err
 	}
-	containers, err := c.Containers(ctx)
+	return container.ID, nil
+}
+
+func (c *Client) findContainer(ctx context.Context, configured string, envID int) (Container, bool, error) {
+	if configured == "" {
+		return Container{}, false, fmt.Errorf("container id is empty")
+	}
+	containers, err := c.Containers(ctx, envID)
 	if err != nil {
-		return "", err
+		return Container{}, false, err
 	}
 	want := strings.TrimPrefix(configured, "/")
 	for _, container := range containers {
 		if container.ID == configured || strings.HasPrefix(container.ID, configured) || container.Name == want || strings.TrimPrefix(container.Name, "/") == want {
-			return container.ID, nil
+			return container, true, nil
 		}
 		for _, name := range container.Names {
 			if strings.TrimPrefix(name, "/") == want {
-				return container.ID, nil
+				return container, true, nil
 			}
 		}
 	}
-	return configured, nil
+	return Container{}, false, nil
 }
 
-func (c *Client) do(ctx context.Context, method, path string, query url.Values, out any) error {
+func (c *Client) envIDFor(ctx context.Context, target hosts.Target) (int, error) {
+	if target.Environment == "" {
+		return c.envID, nil
+	}
+	if id, err := strconv.Atoi(target.Environment); err == nil {
+		return id, nil
+	}
+	key := strings.ToLower(target.Environment)
+	c.mu.Lock()
+	if id, ok := c.envs[key]; ok {
+		c.mu.Unlock()
+		return id, nil
+	}
+	c.mu.Unlock()
+
+	var envs []Environment
+	if err := c.do(ctx, http.MethodGet, "/api/environments", 0, nil, &envs); err != nil {
+		return 0, err
+	}
+	for _, env := range envs {
+		if strings.EqualFold(env.Name, target.Environment) {
+			c.mu.Lock()
+			c.envs[key] = env.ID
+			c.mu.Unlock()
+			return env.ID, nil
+		}
+	}
+	return 0, fmt.Errorf("dockhand environment %q not found", target.Environment)
+}
+
+func (c *Client) do(ctx context.Context, method, path string, envID int, query url.Values, out any) error {
 	u, err := url.Parse(c.baseURL + path)
 	if err != nil {
 		return err
@@ -100,7 +182,9 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 			q.Add(k, value)
 		}
 	}
-	q.Set("env", fmt.Sprintf("%d", c.envID))
+	if envID > 0 {
+		q.Set("env", fmt.Sprintf("%d", envID))
+	}
 	u.RawQuery = q.Encode()
 
 	var body *bytes.Reader

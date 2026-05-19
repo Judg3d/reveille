@@ -77,7 +77,13 @@ func (s *Server) forwardAuth(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if s.deps.Health.Healthy(r.Context(), host.Target) {
+	healthy, err := s.healthy(r.Context(), host)
+	if err != nil {
+		log.Printf("health %s: %v", host.Host, err)
+		http.Error(w, "failed to check target health", http.StatusInternalServerError)
+		return
+	}
+	if healthy {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -124,9 +130,14 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := statusResponse{
 		Host:     host.Host,
-		Healthy:  s.deps.Health.Healthy(r.Context(), host.Target),
 		ReturnTo: sanitizeReturnTo(r.URL.Query().Get("returnTo")),
 	}
+	healthy, err := s.healthy(r.Context(), host)
+	if err != nil {
+		http.Error(w, "failed to check target health", http.StatusBadGateway)
+		return
+	}
+	resp.Healthy = healthy
 	if active, ok := s.deps.Leases.Get(host.Host); ok {
 		resp.Never = active.Never
 		if active.Never {
@@ -136,6 +147,13 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, resp)
+}
+
+func (s *Server) healthy(ctx context.Context, host hosts.Host) (bool, error) {
+	if host.Target.HealthURL != "" {
+		return s.deps.Health.Healthy(ctx, host.Target), nil
+	}
+	return s.deps.Dockhand.Healthy(ctx, host.Target)
 }
 
 func (s *Server) lease(w http.ResponseWriter, r *http.Request) {

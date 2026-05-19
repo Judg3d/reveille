@@ -3,9 +3,10 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
@@ -40,6 +41,26 @@ type LeaseDuration struct {
 	Never    bool
 }
 
+type rawConfig struct {
+	Server struct {
+		Listen     string `yaml:"listen"`
+		PublicPath string `yaml:"publicPath"`
+	} `yaml:"server"`
+	Dockhand struct {
+		BaseURL       string `yaml:"baseUrl"`
+		APIToken      string `yaml:"apiToken"`
+		EnvironmentID int    `yaml:"environmentId"`
+		Timeout       string `yaml:"timeout"`
+	} `yaml:"dockhand"`
+	Defaults struct {
+		Lease        string   `yaml:"lease"`
+		LeaseOptions []string `yaml:"leaseOptions"`
+		StartTimeout string   `yaml:"startTimeout"`
+		StopGrace    string   `yaml:"stopGrace"`
+		PollInterval string   `yaml:"pollInterval"`
+	} `yaml:"defaults"`
+}
+
 func Load(path string) (Config, error) {
 	cfg := DefaultConfig()
 	if _, err := os.Stat(path); err != nil {
@@ -48,67 +69,79 @@ func Load(path string) (Config, error) {
 		}
 		return cfg, err
 	}
-	values, err := parseYAMLFile(path)
-	if err != nil {
+	var raw rawConfig
+	if err := LoadYAML(path, &raw); err != nil {
 		return cfg, err
 	}
-	if v := str(values, "server.listen"); v != "" {
-		cfg.Server.Listen = v
+	if raw.Server.Listen != "" {
+		cfg.Server.Listen = raw.Server.Listen
 	}
-	if v := str(values, "server.publicPath"); v != "" {
-		cfg.Server.PublicPath = v
+	if raw.Server.PublicPath != "" {
+		cfg.Server.PublicPath = raw.Server.PublicPath
 	}
-	if v := str(values, "dockhand.baseUrl"); v != "" {
-		cfg.Dockhand.BaseURL = strings.TrimRight(v, "/")
+	if raw.Dockhand.BaseURL != "" {
+		cfg.Dockhand.BaseURL = strings.TrimRight(raw.Dockhand.BaseURL, "/")
 	}
-	if v := str(values, "dockhand.apiToken"); v != "" {
-		cfg.Dockhand.APIToken = expandEnv(v)
+	if raw.Dockhand.APIToken != "" {
+		cfg.Dockhand.APIToken = expandEnv(raw.Dockhand.APIToken)
 	}
 	if cfg.Dockhand.APIToken == "" {
 		cfg.Dockhand.APIToken = os.Getenv("DOCKHAND_API_TOKEN")
 	}
-	if v := str(values, "dockhand.environmentId"); v != "" {
-		id, err := strconv.Atoi(v)
-		if err != nil {
-			return cfg, fmt.Errorf("dockhand.environmentId: %w", err)
-		}
-		cfg.Dockhand.EnvironmentID = id
+	if raw.Dockhand.EnvironmentID != 0 {
+		cfg.Dockhand.EnvironmentID = raw.Dockhand.EnvironmentID
 	}
-	if v := str(values, "dockhand.timeout"); v != "" {
-		d, err := time.ParseDuration(v)
+	if raw.Dockhand.Timeout != "" {
+		d, err := time.ParseDuration(raw.Dockhand.Timeout)
 		if err != nil {
 			return cfg, fmt.Errorf("dockhand.timeout: %w", err)
 		}
 		cfg.Dockhand.Timeout = d
 	}
-	if v := str(values, "defaults.lease"); v != "" {
-		lease, err := ParseLeaseDuration(v)
+	if raw.Defaults.Lease != "" {
+		lease, err := ParseLeaseDuration(raw.Defaults.Lease)
 		if err != nil {
 			return cfg, fmt.Errorf("defaults.lease: %w", err)
 		}
 		cfg.Defaults.Lease = lease
 	}
-	if vs := list(values, "defaults.leaseOptions"); len(vs) > 0 {
-		options, err := ParseLeaseDurations(vs)
+	if len(raw.Defaults.LeaseOptions) > 0 {
+		options, err := ParseLeaseDurations(raw.Defaults.LeaseOptions)
 		if err != nil {
 			return cfg, fmt.Errorf("defaults.leaseOptions: %w", err)
 		}
 		cfg.Defaults.LeaseOptions = options
 	}
-	for key, dst := range map[string]*time.Duration{
-		"defaults.startTimeout": &cfg.Defaults.StartTimeout,
-		"defaults.stopGrace":    &cfg.Defaults.StopGrace,
-		"defaults.pollInterval": &cfg.Defaults.PollInterval,
-	} {
-		if v := str(values, key); v != "" {
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				return cfg, fmt.Errorf("%s: %w", key, err)
-			}
-			*dst = d
-		}
+	if err := setDuration("defaults.startTimeout", raw.Defaults.StartTimeout, &cfg.Defaults.StartTimeout); err != nil {
+		return cfg, err
+	}
+	if err := setDuration("defaults.stopGrace", raw.Defaults.StopGrace, &cfg.Defaults.StopGrace); err != nil {
+		return cfg, err
+	}
+	if err := setDuration("defaults.pollInterval", raw.Defaults.PollInterval, &cfg.Defaults.PollInterval); err != nil {
+		return cfg, err
 	}
 	return cfg, validate(cfg)
+}
+
+func LoadYAML(path string, out any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(data, out)
+}
+
+func setDuration(name, value string, dst *time.Duration) error {
+	if value == "" {
+		return nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	*dst = d
+	return nil
 }
 
 func DefaultConfig() Config {

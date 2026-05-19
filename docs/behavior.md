@@ -243,15 +243,10 @@ Container target example:
 
 ```yaml
 # hosts/jellyfin.yml
-host: jellyfin.example.com
-
 target:
-  type: container
   id: jellyfin
-  healthUrl: http://jellyfin:8096/health
-  healthyStatus:
-    - 200
-    - 302
+  environment: homelab
+  hostname: jellyfin.example.com
 
 lease:
   default: 2h
@@ -266,6 +261,32 @@ routing:
   returnToHeader: X-Forwarded-Uri
 ```
 
+For container targets, Reveille uses Dockhand as the default readiness source.
+It lists containers in the configured environment, resolves `target.id` by ID
+or name, and treats the target as ready when Dockhand reports the container
+running. If the container has Docker health status, Reveille waits for
+`healthy`.
+
+`target.type` defaults to `container`. Set `type: stack` only for Dockhand
+compose stacks.
+
+Use `target.healthUrl` and `target.healthyStatus` only when HTTP readiness
+should override Dockhand container state.
+
+Multiple targets can live in one file:
+
+```yaml
+# hosts/apps.yml
+targets:
+  - id: jellyfin
+    environment: homelab
+    hostname: jellyfin.example.com
+
+  - id: audiobookshelf
+    environment: homelab
+    hostname: audio.example.com
+```
+
 Stack target example:
 
 ```yaml
@@ -275,6 +296,7 @@ host: paperless.example.com
 target:
   type: stack
   name: paperless
+  environment: homelab
   healthUrl: http://paperless-webserver:8000/
   healthyStatus:
     - 200

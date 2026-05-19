@@ -7,6 +7,9 @@ dockhand:
   # Optional auth: leave DOCKHAND_API_TOKEN empty when Dockhand authentication
   # is disabled. If your Dockhand deployment requires API auth, set the token
   # through Compose, your shell, or a deployment secret store.
+  # Default Dockhand environment ID. Per-host config may override this with
+  # target.environment using either an environment ID or Dockhand environment
+  # name.
   environmentId: 1
   timeout: "30s"
 

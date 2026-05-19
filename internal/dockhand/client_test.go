@@ -63,6 +63,62 @@ func TestStackStopPath(t *testing.T) {
 	}
 }
 
+func TestHealthyUsesDockhandContainerHealth(t *testing.T) {
+	client := NewClient("http://dockhand.test", "", 1, time.Second)
+	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/containers" {
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		body, _ := json.Marshal([]Container{{
+			ID:     "abc123",
+			Names:  []string{"/jellyfin"},
+			State:  "running",
+			Status: "Up 4 seconds",
+			Health: "healthy",
+		}})
+		return response(http.StatusOK, body), nil
+	})
+
+	healthy, err := client.Healthy(context.Background(), hosts.Target{Type: "container", ID: "jellyfin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !healthy {
+		t.Fatal("container should be healthy")
+	}
+}
+
+func TestEnvironmentNameResolvesToID(t *testing.T) {
+	var sawEnvLookup, sawContainerLookup bool
+	client := NewClient("http://dockhand.test", "", 1, time.Second)
+	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/environments":
+			sawEnvLookup = true
+			body, _ := json.Marshal([]Environment{{ID: 7, Name: "prod"}})
+			return response(http.StatusOK, body), nil
+		case "/api/containers":
+			sawContainerLookup = true
+			if r.URL.Query().Get("env") != "7" {
+				t.Fatalf("env query = %q", r.URL.RawQuery)
+			}
+			body, _ := json.Marshal([]Container{{ID: "abc123", Name: "app", State: "running"}})
+			return response(http.StatusOK, body), nil
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return response(http.StatusInternalServerError, nil), nil
+	})
+
+	healthy, err := client.Healthy(context.Background(), hosts.Target{Type: "container", ID: "app", Environment: "prod"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !healthy || !sawEnvLookup || !sawContainerLookup {
+		t.Fatalf("healthy=%v sawEnvLookup=%v sawContainerLookup=%v", healthy, sawEnvLookup, sawContainerLookup)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
