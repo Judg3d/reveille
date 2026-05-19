@@ -108,11 +108,22 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 	if returnTo == "" {
 		returnTo = "/"
 	}
+	clientCfg := map[string]any{
+		"host":       host.Host,
+		"returnTo":   returnTo,
+		"publicPath": strings.TrimRight(s.deps.Config.Server.PublicPath, "/"),
+		"pollMillis": int(s.deps.Config.Defaults.PollInterval / time.Millisecond),
+	}
+	cfgJSON, err := json.Marshal(clientCfg)
+	if err != nil {
+		http.Error(w, "failed to render wait config", http.StatusInternalServerError)
+		return
+	}
 	data := map[string]any{
 		"Host":         host.Host,
 		"PublicPath":   strings.TrimRight(s.deps.Config.Server.PublicPath, "/"),
 		"ReturnTo":     returnTo,
-		"PollMillis":   int(s.deps.Config.Defaults.PollInterval / time.Millisecond),
+		"ConfigJSON":   string(cfgJSON),
 		"LeaseDefault": host.Lease.Default.Label,
 		"LeaseOptions": host.Lease.Options,
 	}

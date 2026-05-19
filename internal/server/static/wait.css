@@ -37,6 +37,15 @@ body {
   box-shadow: 0 16px 42px rgba(32, 35, 31, 0.08);
 }
 
+.step {
+  display: grid;
+  gap: 24px;
+}
+
+.hidden {
+  display: none;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--accent);
@@ -116,6 +125,12 @@ button {
   background: color-mix(in srgb, var(--line) 30%, transparent);
   border: 1px solid var(--line);
   border-radius: 6px;
+}
+
+.status.error {
+  color: #7f1d1d;
+  background: #fee2e2;
+  border-color: #fecaca;
 }
 
 @media (prefers-color-scheme: dark) {

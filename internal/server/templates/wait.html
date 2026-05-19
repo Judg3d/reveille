@@ -3,44 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="5">
   <title>Starting {{.Host}}</title>
   <link rel="stylesheet" href="{{.PublicPath}}/static/wait.css">
 </head>
 <body>
   <main class="shell">
     <section class="panel">
-      <div>
+      <div id="timer-step" class="step">
+        <p class="eyebrow">Reveille</p>
+        <h1>{{.Host}} is sleeping</h1>
+        <p class="copy">Pick how long to keep this service running. Reveille will request start, then redirect automatically when health checks pass.</p>
+        <form id="lease-form" class="lease" method="post" action="{{.PublicPath}}/api/lease?host={{.Host}}">
+          <input type="hidden" name="returnTo" value="{{.ReturnTo}}">
+          <label for="lease">Timer</label>
+          <div class="lease-row">
+            <select id="lease" name="lease">
+              {{range .LeaseOptions}}
+              <option value="{{.Label}}" {{if eq .Label $.LeaseDefault}}selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+            <button type="submit">Start</button>
+          </div>
+        </form>
+      </div>
+      <div id="poll-step" class="step hidden" aria-live="polite">
         <p class="eyebrow">Reveille</p>
         <h1>{{.Host}} is starting</h1>
-        <p class="copy">The service is being started. This page will continue automatically when the health check passes.</p>
+        <p class="copy">Polling health every 5 seconds. This page will redirect to your app automatically as soon as it is ready.</p>
+        <div class="status" id="status">Waiting for health check...</div>
+        <form method="post" action="{{.PublicPath}}/api/stop?host={{.Host}}">
+          <button class="secondary" type="submit">Stop now</button>
+        </form>
       </div>
-      <form id="lease-form" class="lease" method="post" action="{{.PublicPath}}/api/lease?host={{.Host}}">
-        <input type="hidden" name="returnTo" value="{{.ReturnTo}}">
-        <label for="lease">Lease</label>
-        <div class="lease-row">
-          <select id="lease" name="lease">
-            {{range .LeaseOptions}}
-            <option value="{{.Label}}" {{if eq .Label $.LeaseDefault}}selected{{end}}>{{.Label}}</option>
-            {{end}}
-          </select>
-          <button type="submit">Apply</button>
+      <noscript>
+        <div class="status">
+          JavaScript is required for automatic polling and redirect.
         </div>
-      </form>
-      <div class="status" id="status">Checking every 5 seconds...</div>
-      <form method="post" action="{{.PublicPath}}/api/stop?host={{.Host}}">
-        <button class="secondary" type="submit">Stop now</button>
-      </form>
+      </noscript>
     </section>
   </main>
-  <script>
-    window.reveille = {
-      host: {{printf "%q" .Host}},
-      returnTo: {{printf "%q" .ReturnTo}},
-      publicPath: {{printf "%q" .PublicPath}},
-      pollMillis: {{.PollMillis}}
-    };
-  </script>
+  <script id="reveille-config" type="application/json">{{.ConfigJSON}}</script>
   <script src="{{.PublicPath}}/static/wait.js"></script>
 </body>
 </html>
