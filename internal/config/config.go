@@ -64,6 +64,9 @@ func Load(path string) (Config, error) {
 	if v := str(values, "dockhand.apiToken"); v != "" {
 		cfg.Dockhand.APIToken = expandEnv(v)
 	}
+	if cfg.Dockhand.APIToken == "" {
+		cfg.Dockhand.APIToken = os.Getenv("DOCKHAND_API_TOKEN")
+	}
 	if v := str(values, "dockhand.environmentId"); v != "" {
 		id, err := strconv.Atoi(v)
 		if err != nil {
@@ -111,10 +114,11 @@ func Load(path string) (Config, error) {
 func DefaultConfig() Config {
 	options, _ := ParseLeaseDurations([]string{"30m", "1h", "2h", "4h", "never"})
 	lease, _ := ParseLeaseDuration("2h")
-	return Config{
+	cfg := Config{
 		Server: ServerConfig{Listen: ":8080", PublicPath: "/_reveille"},
 		Dockhand: DockhandConfig{
 			BaseURL:       "http://dockhand:3000",
+			APIToken:      os.Getenv("DOCKHAND_API_TOKEN"),
 			EnvironmentID: 1,
 			Timeout:       30 * time.Second,
 		},
@@ -126,6 +130,7 @@ func DefaultConfig() Config {
 			PollInterval: 5 * time.Second,
 		},
 	}
+	return cfg
 }
 
 func validate(cfg Config) error {

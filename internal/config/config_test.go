@@ -48,6 +48,25 @@ defaults:
 	}
 }
 
+func TestLoadUsesDockhandTokenFromEnvironmentWhenConfigOmitsIt(t *testing.T) {
+	t.Setenv("DOCKHAND_API_TOKEN", "dh_from_env")
+	path := filepath.Join(t.TempDir(), "config.yml")
+	if err := os.WriteFile(path, []byte(`
+dockhand:
+  baseUrl: "http://dockhand.local"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Dockhand.APIToken != "dh_from_env" {
+		t.Fatalf("api token = %q", cfg.Dockhand.APIToken)
+	}
+}
+
 func TestParseLeaseDurationNever(t *testing.T) {
 	lease, err := ParseLeaseDuration("never")
 	if err != nil {
