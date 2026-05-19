@@ -25,7 +25,7 @@ check_go:
       - .cache/go-build
       - .cache/go-mod
   script:
-    - GOFMT_OUTPUT=$(git ls-files '*.go' | xargs -r gofmt -l)
+    - GOFMT_OUTPUT=$(find . -type f -name '*.go' -not -path './vendor/*' -not -path './.cache/*' -not -path './.git/*' -print0 | xargs -0 -r gofmt -l)
     - |
       if [ -n "$GOFMT_OUTPUT" ]; then
         echo "Go files need formatting (run gofmt):"
