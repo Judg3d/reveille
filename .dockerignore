@@ -1,0 +1,6 @@
+.git
+.cache
+.env
+.env.*
+!.env.example
+reveille
