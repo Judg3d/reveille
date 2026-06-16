@@ -30,6 +30,7 @@ defaults:
   # Lease choices shown to users on the wait page. Add, remove, or reorder
   # these values freely. Each value must be a valid duration or "never".
   leaseOptions:
+    - "1m"
     - "30m"
     - "1h"
     - "2h"

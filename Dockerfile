@@ -18,4 +18,4 @@ EXPOSE 8080
 COPY --from=build /out/reveille /usr/local/bin/reveille
 
 ENTRYPOINT ["/usr/local/bin/reveille"]
-CMD ["-config", "/etc/reveille/config.yml", "-hosts", "/etc/reveille/hosts"]
+CMD ["-config", "/etc/reveille/reveille.yml", "-hosts", "/etc/reveille/hosts"]

@@ -171,7 +171,7 @@ target:
 
 ## Lease Overrides
 
-If omitted, the defaults from `config.yml` are used. Add this section only when
+If omitted, the defaults from `reveille.yml` are used. Add this section only when
 a host needs different lease choices.
 
 ```yaml

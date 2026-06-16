@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", envDefault("REVEILLE_CONFIG", "config.yml"), "path to config.yml")
+	configPath := flag.String("config", envDefault("REVEILLE_CONFIG", "reveille.yml"), "path to reveille.yml")
 	hostsDir := flag.String("hosts", envDefault("REVEILLE_HOSTS_DIR", "hosts"), "path to dynamic host config directory")
 	flag.Parse()
 
