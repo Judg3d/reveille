@@ -2,6 +2,11 @@ server:
   listen: ":8080"
   publicPath: "/_reveille"
 
+log:
+  # Log levels: debug, info, warn, error
+  # Default is info
+  level: "debug"
+
 dockhand:
   baseUrl: "http://dockhand:3000"
   # Optional auth: leave DOCKHAND_API_TOKEN empty when Dockhand authentication
@@ -25,12 +30,13 @@ defaults:
   # Supported units are "ns", "us" or "µs", "ms", "s", "m", and "h".
   # Use "never" to leave the target running until it is manually stopped or
   # replaced by a finite lease.
-  lease: "2h"
+  lease: "15m"
 
   # Lease choices shown to users on the wait page. Add, remove, or reorder
   # these values freely. Each value must be a valid duration or "never".
   leaseOptions:
-    - "1m"
+    - "4m"
+    - "15m"
     - "30m"
     - "1h"
     - "2h"
