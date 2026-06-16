@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"html/template"
 	"io/fs"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"reveille/internal/health"
 	"reveille/internal/hosts"
 	"reveille/internal/leases"
+	"reveille/internal/logging"
 )
 
 //go:embed templates/*.html static/*.css static/*.js
@@ -28,6 +28,7 @@ type Dependencies struct {
 	Dockhand   *dockhand.Client
 	Health     *health.Checker
 	Leases     *leases.Manager
+	Logger     *logging.Logger
 	StartClock func() time.Time
 }
 
@@ -37,15 +38,24 @@ type Server struct {
 }
 
 type statusResponse struct {
-	Host      string `json:"host"`
-	Healthy   bool   `json:"healthy"`
-	ReturnTo  string `json:"returnTo"`
-	Lease     string `json:"lease,omitempty"`
-	ExpiresAt string `json:"expiresAt,omitempty"`
-	Never     bool   `json:"never,omitempty"`
+	Host           string `json:"host"`
+	Healthy        bool   `json:"healthy"`
+	ReturnTo       string `json:"returnTo"`
+	Lease          string `json:"lease,omitempty"`
+	LeaseActive    bool   `json:"leaseActive"`
+	ExpiresAt      string `json:"expiresAt,omitempty"`
+	Never          bool   `json:"never,omitempty"`
+	StatusMessage  string `json:"statusMessage,omitempty"`
+	ReadinessState string `json:"readinessState,omitempty"`
+	HealthError    string `json:"healthError,omitempty"`
+	LastCheck      string `json:"lastCheck,omitempty"`
+	HealthStatus   int    `json:"healthStatus,omitempty"`
 }
 
 func New(deps Dependencies) *Server {
+	if deps.Logger == nil {
+		deps.Logger = logging.Must("info")
+	}
 	return &Server{
 		deps: deps,
 		tpl:  template.Must(template.ParseFS(assets, "templates/*.html")),
@@ -79,7 +89,7 @@ func (s *Server) forwardAuth(w http.ResponseWriter, r *http.Request) {
 	}
 	healthy, err := s.healthy(r.Context(), host)
 	if err != nil {
-		log.Printf("health %s: %v", host.Host, err)
+		s.deps.Logger.Errorf("health %s: %v", host.Host, err)
 		http.Error(w, "failed to check target health", http.StatusInternalServerError)
 		return
 	}
@@ -90,7 +100,7 @@ func (s *Server) forwardAuth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), s.deps.Config.Defaults.StartTimeout)
 	defer cancel()
 	if err := s.deps.Dockhand.Start(ctx, host.Target); err != nil {
-		log.Printf("start %s: %v", host.Host, err)
+		s.deps.Logger.Errorf("start %s: %v", host.Host, err)
 		http.Error(w, "failed to start target", http.StatusServiceUnavailable)
 		return
 	}
@@ -129,7 +139,7 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tpl.ExecuteTemplate(w, "wait.html", data); err != nil {
-		log.Printf("render wait: %v", err)
+		s.deps.Logger.Errorf("render wait: %v", err)
 	}
 }
 
@@ -143,13 +153,28 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 		Host:     host.Host,
 		ReturnTo: sanitizeReturnTo(r.URL.Query().Get("returnTo")),
 	}
-	healthy, err := s.healthy(r.Context(), host)
-	if err != nil {
-		http.Error(w, "failed to check target health", http.StatusBadGateway)
-		return
+	if host.Target.HealthURL != "" {
+		check := s.deps.Health.Check(r.Context(), host.Target)
+		resp.Healthy = check.Healthy
+		resp.LastCheck = check.CheckedAt.Format(time.RFC3339)
+		if check.StatusCode != 0 {
+			resp.HealthStatus = check.StatusCode
+		}
+		if check.Error != "" {
+			resp.HealthError = check.Error
+			s.deps.Logger.Warnf("status %s: health check failed: %s", host.Host, check.Error)
+		}
+	} else {
+		healthy, err := s.healthy(r.Context(), host)
+		if err != nil {
+			s.deps.Logger.Warnf("status %s: health check failed: %v", host.Host, err)
+			http.Error(w, "failed to check target health", http.StatusBadGateway)
+			return
+		}
+		resp.Healthy = healthy
 	}
-	resp.Healthy = healthy
 	if active, ok := s.deps.Leases.Get(host.Host); ok {
+		resp.LeaseActive = true
 		resp.Never = active.Never
 		if active.Never {
 			resp.Lease = "Never"
@@ -157,6 +182,9 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 			resp.ExpiresAt = active.ExpiresAt.Format(time.RFC3339)
 		}
 	}
+	resp.ReadinessState = readinessState(resp)
+	resp.StatusMessage = statusMessage(resp)
+	s.deps.Logger.Debugf("status %s: healthy=%t leaseActive=%t readiness=%s never=%t expiresAt=%q healthStatus=%d healthError=%q", host.Host, resp.Healthy, resp.LeaseActive, resp.ReadinessState, resp.Never, resp.ExpiresAt, resp.HealthStatus, resp.HealthError)
 	writeJSON(w, resp)
 }
 
@@ -196,11 +224,17 @@ func (s *Server) lease(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !found {
+			s.deps.Logger.Warnf("lease rejected for %s: invalid lease %q", host.Host, value)
 			http.Error(w, "invalid lease", http.StatusBadRequest)
 			return
 		}
 	}
 	active := s.deps.Leases.Set(host, lease, s.deps.StartClock())
+	if active.Never {
+		s.deps.Logger.Infof("lease accepted for %s: never", host.Host)
+	} else {
+		s.deps.Logger.Infof("lease accepted for %s: expiresAt=%s", host.Host, active.ExpiresAt.Format(time.RFC3339))
+	}
 	writeJSON(w, active)
 }
 
@@ -263,6 +297,40 @@ func sanitizeReturnTo(raw string) string {
 		return "/"
 	}
 	return raw
+}
+
+func statusMessage(resp statusResponse) string {
+	switch {
+	case resp.Healthy:
+		return "App is ready. Redirecting now."
+	case resp.LeaseActive && resp.ReadinessState == "health_unreachable" && resp.Never:
+		return "App start was requested, but Reveille cannot reach the health endpoint yet. Automatic stop is disabled."
+	case resp.LeaseActive && resp.ReadinessState == "health_unreachable":
+		return "App start was requested, but Reveille cannot reach the health endpoint yet."
+	case resp.LeaseActive && resp.ReadinessState == "health_unhealthy" && resp.Never:
+		return "App start was requested, but the health endpoint is responding with a non-healthy status. Automatic stop is disabled."
+	case resp.LeaseActive && resp.ReadinessState == "health_unhealthy":
+		return "App start was requested, but the health endpoint is responding with a non-healthy status."
+	case resp.LeaseActive && resp.Never:
+		return "App start was requested. Waiting for health check before redirect. Automatic stop is disabled."
+	case resp.LeaseActive:
+		return "App start was requested. Waiting for health check before redirect."
+	default:
+		return "Choose a timer to keep this app running while Reveille waits for readiness."
+	}
+}
+
+func readinessState(resp statusResponse) string {
+	switch {
+	case resp.Healthy:
+		return "ready"
+	case resp.HealthError != "":
+		return "health_unreachable"
+	case resp.HealthStatus != 0:
+		return "health_unhealthy"
+	default:
+		return "waiting_for_health"
+	}
 }
 
 func publicBaseURL(r *http.Request) string {

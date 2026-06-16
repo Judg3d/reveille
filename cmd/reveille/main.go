@@ -15,6 +15,7 @@ import (
 	"reveille/internal/health"
 	"reveille/internal/hosts"
 	"reveille/internal/leases"
+	"reveille/internal/logging"
 	"reveille/internal/server"
 )
 
@@ -27,20 +28,25 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
-	store, err := hosts.LoadDir(*hostsDir, cfg.Defaults)
+	logger, err := logging.New(cfg.Log.Level)
 	if err != nil {
-		log.Fatalf("load hosts: %v", err)
+		log.Fatalf("init logger: %v", err)
+	}
+	store, err := hosts.LoadDir(*hostsDir, cfg.Defaults, logger)
+	if err != nil {
+		logger.Errorf("load hosts: %v", err)
+		os.Exit(1)
 	}
 
 	dh := dockhand.NewClient(cfg.Dockhand.BaseURL, cfg.Dockhand.APIToken, cfg.Dockhand.EnvironmentID, cfg.Dockhand.Timeout)
 	checker := health.NewChecker(http.DefaultClient)
 	leases := leases.NewManager(func(ctx context.Context, host hosts.Host) error {
 		return dh.Stop(ctx, host.Target)
-	})
+	}, logger)
 	ctx, stopWatch := context.WithCancel(context.Background())
 	defer stopWatch()
 	go store.Watch(ctx, 5*time.Second, func(err error) {
-		log.Printf("reload hosts: %v", err)
+		logger.Errorf("reload hosts: %v", err)
 	})
 
 	app := server.New(server.Dependencies{
@@ -49,14 +55,16 @@ func main() {
 		Dockhand:   dh,
 		Health:     checker,
 		Leases:     leases,
+		Logger:     logger,
 		StartClock: time.Now,
 	})
 
 	srv := &http.Server{Addr: cfg.Server.Listen, Handler: app.Routes()}
 	go func() {
-		log.Printf("reveille listening on %s", cfg.Server.Listen)
+		logger.Infof("reveille listening on %s", cfg.Server.Listen)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server: %v", err)
+			logger.Errorf("server: %v", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -68,7 +76,7 @@ func main() {
 	defer cancel()
 	leases.Close()
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("shutdown: %v", err)
+		logger.Warnf("shutdown: %v", err)
 	}
 }
 
