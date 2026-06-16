@@ -13,9 +13,9 @@ import (
 type StopFunc func(context.Context, hosts.Host) error
 
 type Lease struct {
-	Host      string
-	Never     bool
-	ExpiresAt time.Time
+	Host      string    `json:"host"`
+	Never     bool      `json:"never"`
+	ExpiresAt time.Time `json:"expiresAt,omitempty"`
 }
 
 type Manager struct {
