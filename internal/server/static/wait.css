@@ -133,6 +133,39 @@ button {
   border-color: #fecaca;
 }
 
+.status-detail {
+  margin-top: -12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.status-detail strong {
+  color: var(--ink);
+}
+
+.countdown {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.countdown-label {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.countdown strong {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #171916;

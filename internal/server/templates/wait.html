@@ -12,7 +12,7 @@
       <div id="timer-step" class="step">
         <p class="eyebrow">Reveille</p>
         <h1>{{.Host}} is sleeping</h1>
-        <p class="copy">Pick how long to keep this service running. Reveille will request start, then redirect automatically when health checks pass.</p>
+        <p class="copy">Reveille has already requested start for this app. Pick how long to keep it running, then Reveille will wait here and redirect automatically when health checks pass.</p>
         <form id="lease-form" class="lease" method="post" action="{{.PublicPath}}/api/lease?host={{.Host}}">
           <label for="lease">Timer</label>
           <div class="lease-row">
@@ -21,15 +21,21 @@
               <option value="{{.Label}}" {{if eq .Label $.LeaseDefault}}selected{{end}}>{{.Label}}</option>
               {{end}}
             </select>
-            <button type="submit">Start</button>
+            <button id="lease-submit" type="submit">Start Timer</button>
           </div>
         </form>
+        <div id="form-status" class="status hidden" aria-live="polite"></div>
       </div>
       <div id="poll-step" class="step hidden" aria-live="polite">
         <p class="eyebrow">Reveille</p>
         <h1>{{.Host}} is starting</h1>
-        <p class="copy">Polling health every 5 seconds. This page will redirect to your app automatically as soon as it is ready.</p>
+        <p id="poll-copy" class="copy">Polling health every 5 seconds. This page will redirect to your app automatically as soon as it is ready.</p>
+        <div id="countdown" class="countdown hidden">
+          <span class="countdown-label">Timer</span>
+          <strong id="countdown-value">--:--</strong>
+        </div>
         <div class="status" id="status">Waiting for health check...</div>
+        <div id="status-detail" class="status-detail hidden"></div>
         <form method="post" action="{{.PublicPath}}/api/stop?host={{.Host}}">
           <button class="secondary" type="submit">Stop now</button>
         </form>
