@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"reveille/internal/logging"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
 	Server   ServerConfig
+	Log      LogConfig
 	Dockhand DockhandConfig
 	Defaults Defaults
 }
@@ -18,6 +20,10 @@ type Config struct {
 type ServerConfig struct {
 	Listen     string
 	PublicPath string
+}
+
+type LogConfig struct {
+	Level string
 }
 
 type DockhandConfig struct {
@@ -46,6 +52,9 @@ type rawConfig struct {
 		Listen     string `yaml:"listen"`
 		PublicPath string `yaml:"publicPath"`
 	} `yaml:"server"`
+	Log struct {
+		Level string `yaml:"level"`
+	} `yaml:"log"`
 	Dockhand struct {
 		BaseURL       string `yaml:"baseUrl"`
 		APIToken      string `yaml:"apiToken"`
@@ -78,6 +87,13 @@ func Load(path string) (Config, error) {
 	}
 	if raw.Server.PublicPath != "" {
 		cfg.Server.PublicPath = raw.Server.PublicPath
+	}
+	if raw.Log.Level != "" {
+		level, err := logging.NormalizeLevel(raw.Log.Level)
+		if err != nil {
+			return cfg, fmt.Errorf("log.level: %w", err)
+		}
+		cfg.Log.Level = level
 	}
 	if raw.Dockhand.BaseURL != "" {
 		cfg.Dockhand.BaseURL = strings.TrimRight(raw.Dockhand.BaseURL, "/")
@@ -149,6 +165,7 @@ func DefaultConfig() Config {
 	lease, _ := ParseLeaseDuration("2h")
 	cfg := Config{
 		Server: ServerConfig{Listen: ":8080", PublicPath: "/_reveille"},
+		Log:    LogConfig{Level: "info"},
 		Dockhand: DockhandConfig{
 			BaseURL:       "http://dockhand:3000",
 			APIToken:      os.Getenv("DOCKHAND_API_TOKEN"),
@@ -169,6 +186,9 @@ func DefaultConfig() Config {
 func validate(cfg Config) error {
 	if cfg.Server.Listen == "" {
 		return fmt.Errorf("server.listen is required")
+	}
+	if _, err := logging.ParseLevel(cfg.Log.Level); err != nil {
+		return fmt.Errorf("log.level: %w", err)
 	}
 	if cfg.Server.PublicPath == "" || !strings.HasPrefix(cfg.Server.PublicPath, "/") {
 		return fmt.Errorf("server.publicPath must start with /")

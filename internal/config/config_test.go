@@ -13,6 +13,8 @@ func TestLoadParsesDurationsNeverAndEnv(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`
 server:
   listen: ":9090"
+log:
+  level: "warning"
 dockhand:
   baseUrl: "http://dockhand.local"
   apiToken: "${DOCKHAND_API_TOKEN}"
@@ -36,6 +38,9 @@ defaults:
 	}
 	if cfg.Server.Listen != ":9090" || cfg.Dockhand.APIToken != "dh_test" || cfg.Dockhand.EnvironmentID != 7 {
 		t.Fatalf("unexpected config: %+v", cfg)
+	}
+	if cfg.Log.Level != "warn" {
+		t.Fatalf("log level = %q", cfg.Log.Level)
 	}
 	if cfg.Defaults.Lease.Duration != time.Hour {
 		t.Fatalf("lease = %v", cfg.Defaults.Lease.Duration)
@@ -74,5 +79,19 @@ func TestParseLeaseDurationNever(t *testing.T) {
 	}
 	if !lease.Never || lease.Label != "Never" {
 		t.Fatalf("lease = %+v", lease)
+	}
+}
+
+func TestLoadRejectsInvalidLogLevel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	if err := os.WriteFile(path, []byte(`
+log:
+  level: "verbose"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load(path); err == nil {
+		t.Fatal("expected invalid log level to fail")
 	}
 }
