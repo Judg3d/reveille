@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +66,97 @@ func TestWaitURLFallsBackToRelativePath(t *testing.T) {
 	want := "/_reveille/wait?host=pdf.example.com&returnTo=%2F"
 	if got != want {
 		t.Fatalf("waitURL() = %q, want %q", got, want)
+	}
+}
+
+func TestWaitURLWithRootPublicPath(t *testing.T) {
+	s := &Server{
+		deps: Dependencies{
+			Config: config.Config{
+				Server: config.ServerConfig{PublicPath: "/"},
+			},
+		},
+	}
+	r := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
+	r.Host = ""
+
+	got := s.waitURL(r, "pdf.example.com", "/")
+	want := "/wait?host=pdf.example.com&returnTo=%2F"
+	if got != want {
+		t.Fatalf("waitURL() = %q, want %q", got, want)
+	}
+}
+
+func TestRoutesMountLeaseAPIAtRootPublicPath(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	s.deps.Config.Server.PublicPath = "/"
+	handler := s.Routes()
+
+	req := httptest.NewRequest("POST", "/api/lease?host=pdf.example.com", strings.NewReader("lease=30m"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var resp struct {
+		ExpiresAt string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode lease response: %v", err)
+	}
+	if resp.ExpiresAt == "" {
+		t.Fatal("expiresAt = empty, want lease details")
+	}
+}
+
+func TestWaitRouteCanReturnStatusJSON(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+
+	req := httptest.NewRequest("GET", "/_reveille/wait?host=pdf.example.com&returnTo=%2Fdocs&format=status", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var resp statusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode status response: %v", err)
+	}
+	if resp.Host != "pdf.example.com" {
+		t.Fatalf("host = %q, want %q", resp.Host, "pdf.example.com")
+	}
+	if resp.ReturnTo != "/docs" {
+		t.Fatalf("returnTo = %q, want %q", resp.ReturnTo, "/docs")
+	}
+}
+
+func TestWaitRouteCanCreateLease(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var resp struct {
+		ExpiresAt string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode lease response: %v", err)
+	}
+	if resp.ExpiresAt == "" {
+		t.Fatal("expiresAt = empty, want lease details")
 	}
 }
 
@@ -151,7 +243,12 @@ func TestStatusReportsNeverLease(t *testing.T) {
 }
 
 func TestStatusReportsHealthyRedirectState(t *testing.T) {
-	s, _ := newTestServer(t, http.StatusOK)
+	s, lease := newTestServer(t, http.StatusOK)
+	host, ok := s.deps.Hosts.Lookup("pdf.example.com")
+	if !ok {
+		t.Fatal("host not loaded")
+	}
+	lease.Set(host, config.LeaseDuration{Label: "1m", Duration: time.Minute}, time.Now().UTC())
 
 	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2F", nil)
 	rec := httptest.NewRecorder()
@@ -174,6 +271,57 @@ func TestStatusReportsHealthyRedirectState(t *testing.T) {
 	}
 	if resp.ReadinessState != "ready" {
 		t.Fatalf("readinessState = %q", resp.ReadinessState)
+	}
+}
+
+func TestStatusReportsHealthyWithoutLeaseNeedsTimer(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusOK)
+
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2F", nil)
+	rec := httptest.NewRecorder()
+
+	s.status(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var resp statusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode status response: %v", err)
+	}
+	if !resp.Healthy {
+		t.Fatal("healthy = false, want true")
+	}
+	if resp.LeaseActive {
+		t.Fatal("leaseActive = true, want false")
+	}
+	if resp.StatusMessage != "App is ready. Start a timer to continue." {
+		t.Fatalf("statusMessage = %q", resp.StatusMessage)
+	}
+}
+
+func TestStatusReportsWaitingForTimerWhileAppStarts(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusNotFound)
+
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com", nil)
+	rec := httptest.NewRecorder()
+
+	s.status(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	var resp statusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode status response: %v", err)
+	}
+	if resp.LeaseActive {
+		t.Fatal("leaseActive = true, want false")
+	}
+	if resp.StatusMessage != "Choose a timer to continue. Reveille reached the app, but the health endpoint is not healthy yet." {
+		t.Fatalf("statusMessage = %q", resp.StatusMessage)
 	}
 }
 
@@ -239,12 +387,10 @@ func newTestServerWithHealthURL(t *testing.T, healthURL string) (*Server, *lease
 	}
 
 	leaseMgr := leases.NewManager(func(_ context.Context, _ hosts.Host) error { return nil })
-	return &Server{
-		deps: Dependencies{
-			Config: cfg,
-			Hosts:  store,
-			Health: health.NewChecker(http.DefaultClient),
-			Leases: leaseMgr,
-		},
-	}, leaseMgr
+	return New(Dependencies{
+		Config: cfg,
+		Hosts:  store,
+		Health: health.NewChecker(http.DefaultClient),
+		Leases: leaseMgr,
+	}), leaseMgr
 }
