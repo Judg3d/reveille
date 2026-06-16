@@ -277,12 +277,14 @@ Multiple targets can live in one file:
 
 ```yaml
 # hosts/apps.yml
-targets:
-  - id: jellyfin
+target:
+  jellyfin:
+    id: jellyfin
     environment: homelab
     hostname: jellyfin.example.com
 
-  - id: audiobookshelf
+  audiobookshelf:
+    id: audiobookshelf
     environment: homelab
     hostname: audio.example.com
 ```
@@ -290,17 +292,16 @@ targets:
 Stack target example:
 
 ```yaml
-# hosts/paperless.yml
-host: paperless.example.com
-
+# hosts/apps.yml
 target:
-  type: stack
-  name: paperless
-  environment: homelab
-  healthUrl: http://paperless-webserver:8000/
-  healthyStatus:
-    - 200
-    - 302
+  paperless:
+    type: stack
+    environment: homelab
+    hostname: paperless.example.com
+    healthUrl: http://paperless-webserver:8000/
+    healthyStatus:
+      - 200
+      - 302
 ```
 
 ## Reveille HTTP Contract
