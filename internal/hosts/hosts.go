@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"reveille/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 type Host struct {
@@ -20,11 +21,9 @@ type Host struct {
 }
 
 type rawFile struct {
-	Host    string   `yaml:"host"`
-	Target  Target   `yaml:"target"`
-	Targets []Target `yaml:"targets"`
-	Lease   rawLease `yaml:"lease"`
-	Routing Routing  `yaml:"routing"`
+	TargetNode yaml.Node `yaml:"target"`
+	Lease      rawLease  `yaml:"lease"`
+	Routing    Routing   `yaml:"routing"`
 }
 
 type rawLease struct {
@@ -101,9 +100,9 @@ func LoadFile(path string, defaults config.Defaults) ([]Host, error) {
 	if err := config.LoadYAML(path, &raw); err != nil {
 		return nil, err
 	}
-	targets := raw.Targets
-	if len(targets) == 0 {
-		targets = []Target{raw.Target}
+	targets, err := parseTargetNode(path, raw.TargetNode)
+	if err != nil {
+		return nil, err
 	}
 	lease, err := parseLease(path, defaults, raw.Lease)
 	if err != nil {
@@ -117,7 +116,7 @@ func LoadFile(path string, defaults config.Defaults) ([]Host, error) {
 	hosts := make([]Host, 0, len(targets))
 	for i, target := range targets {
 		h := Host{
-			Host:    firstNonEmpty(target.Hostname, raw.Host),
+			Host:    target.Hostname,
 			Target:  target,
 			Lease:   lease,
 			Routing: routing,
@@ -137,6 +136,33 @@ func LoadFile(path string, defaults config.Defaults) ([]Host, error) {
 	return hosts, nil
 }
 
+func parseTargetNode(path string, node yaml.Node) ([]Target, error) {
+	if node.Kind == 0 {
+		return nil, fmt.Errorf("%s target is required", path)
+	}
+	if node.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("%s target must be a mapping", path)
+	}
+
+	targets := make([]Target, 0, len(node.Content)/2)
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i].Value
+		value := node.Content[i+1]
+		if value.Kind != yaml.MappingNode {
+			return nil, fmt.Errorf("%s target.%s must be a mapping", path, key)
+		}
+		var target Target
+		if err := value.Decode(&target); err != nil {
+			return nil, fmt.Errorf("%s target.%s: %w", path, key, err)
+		}
+		if target.Name == "" {
+			target.Name = key
+		}
+		targets = append(targets, target)
+	}
+	return targets, nil
+}
+
 func parseLease(path string, defaults config.Defaults, raw rawLease) (Lease, error) {
 	lease := Lease{Default: defaults.Lease, Options: defaults.LeaseOptions}
 	if raw.Default != "" {
@@ -154,22 +180,6 @@ func parseLease(path string, defaults config.Defaults, raw rawLease) (Lease, err
 		lease.Options = options
 	}
 	return lease, nil
-}
-
-func NewHost(hostname string, target Target, defaults config.Defaults) (Host, error) {
-	h := Host{
-		Host:    firstNonEmpty(target.Hostname, hostname),
-		Target:  target,
-		Lease:   Lease{Default: defaults.Lease, Options: defaults.LeaseOptions},
-		Routing: Routing{ReturnToHeader: "X-Forwarded-Uri"},
-	}
-	if h.Target.Type == "" {
-		h.Target.Type = "container"
-	}
-	if len(h.Target.HealthyStatus) == 0 {
-		h.Target.HealthyStatus = []int{200}
-	}
-	return validateHost("target", 0, h)
 }
 
 func (s *Store) Lookup(host string) (Host, bool) {
@@ -233,13 +243,4 @@ func validateHost(path string, index int, h Host) (Host, error) {
 		return h, fmt.Errorf("%s target.healthUrl is required for stack targets", label)
 	}
 	return h, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }

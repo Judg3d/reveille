@@ -11,14 +11,14 @@ import (
 func TestLookupByForwardedHostIgnoresPort(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "jellyfin.yml"), []byte(`
-host: jellyfin.example.com
 target:
-  type: container
-  id: jellyfin
-  healthUrl: http://jellyfin:8096/health
-  healthyStatus:
-    - 200
-    - 302
+  jellyfin:
+    type: container
+    hostname: jellyfin.example.com
+    healthUrl: http://jellyfin:8096/health
+    healthyStatus:
+      - 200
+      - 302
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -39,11 +39,11 @@ func TestReloadReplacesHostMap(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "app.yml")
 	if err := os.WriteFile(path, []byte(`
-host: one.example.com
 target:
-  type: stack
-  name: one
-  healthUrl: http://one/
+  one:
+    type: stack
+    hostname: one.example.com
+    healthUrl: http://one/
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -52,11 +52,11 @@ target:
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(`
-host: two.example.com
 target:
-  type: stack
-  name: two
-  healthUrl: http://two/
+  two:
+    type: stack
+    hostname: two.example.com
+    healthUrl: http://two/
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -75,10 +75,11 @@ func TestContainerHostCanUseTargetHostnameAndDockhandHealth(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "app.yml"), []byte(`
 target:
-  type: container
-  id: app
-  environment: prod
-  hostname: app.example.com
+  app:
+    type: container
+    id: app
+    environment: prod
+    hostname: app.example.com
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ target:
 	}
 }
 
-func TestLoadFileSupportsMultipleTargets(t *testing.T) {
+func TestLoadFileRejectsTargetsList(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "apps.yml")
 	if err := os.WriteFile(path, []byte(`
 targets:
@@ -108,6 +109,26 @@ targets:
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := LoadFile(path, config.DefaultConfig().Defaults); err == nil {
+		t.Fatal("expected targets list format to be rejected")
+	}
+}
+
+func TestLoadFileSupportsNamedTargetsMap(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apps.yml")
+	if err := os.WriteFile(path, []byte(`
+target:
+  convertx:
+    type: stack
+    hostname: convert.example.com
+    healthUrl: http://10.0.0.50:3003/healthcheck
+  app2:
+    type: stack
+    hostname: convert2.example.com
+    healthUrl: http://10.0.0.50:3002/healthcheck
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	hosts, err := LoadFile(path, config.DefaultConfig().Defaults)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +136,49 @@ targets:
 	if len(hosts) != 2 {
 		t.Fatalf("hosts = %+v", hosts)
 	}
-	if hosts[0].Target.Type != "container" || hosts[1].Host != "sonarr.example.com" {
+	if hosts[0].Target.Name != "convertx" || hosts[0].Host != "convert.example.com" {
+		t.Fatalf("first host = %+v", hosts[0])
+	}
+	if hosts[1].Target.Name != "app2" || hosts[1].Host != "convert2.example.com" {
+		t.Fatalf("second host = %+v", hosts[1])
+	}
+}
+
+func TestLoadFileNamedTargetsPreservesExplicitName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apps.yml")
+	if err := os.WriteFile(path, []byte(`
+target:
+  convertx:
+    type: stack
+    name: convertx-prod
+    hostname: convert.example.com
+    healthUrl: http://10.0.0.50:3003/healthcheck
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hosts, err := LoadFile(path, config.DefaultConfig().Defaults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hosts) != 1 {
 		t.Fatalf("hosts = %+v", hosts)
+	}
+	if hosts[0].Target.Name != "convertx-prod" {
+		t.Fatalf("target = %+v", hosts[0].Target)
+	}
+}
+
+func TestLoadFileRejectsSingleTargetObject(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yml")
+	if err := os.WriteFile(path, []byte(`
+host: jellyfin.example.com
+target:
+  id: jellyfin
+  environment: homelab
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFile(path, config.DefaultConfig().Defaults); err == nil {
+		t.Fatal("expected single target object format to be rejected")
 	}
 }
