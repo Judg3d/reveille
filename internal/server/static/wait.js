@@ -10,6 +10,7 @@
   }
 
   const status = document.getElementById("status");
+  const statusPill = document.getElementById("status-pill");
   const formStatus = document.getElementById("form-status");
   const form = document.getElementById("lease-form");
   const timerStep = document.getElementById("timer-step");
@@ -17,15 +18,38 @@
   const submitButton = document.getElementById("lease-submit");
   const countdown = document.getElementById("countdown");
   const countdownValue = document.getElementById("countdown-value");
+  const countdownCaption = document.getElementById("countdown-caption");
   const pollCopy = document.getElementById("poll-copy");
+  const timerCopy = document.getElementById("timer-copy");
   const statusDetail = document.getElementById("status-detail");
+  const leaseOptions = Array.from(document.querySelectorAll(".lease-option"));
   let pollTimer = null;
   let countdownTimer = null;
+  let waitingForLease = true;
+
+  function publicURL(path) {
+    return `${cfg.publicPath || ""}${path}`;
+  }
+
+  function waitURL(params) {
+    const query = new URLSearchParams(params);
+    return `${cfg.waitPath || publicURL("/wait")}?${query}`;
+  }
+
+  function setPill(label, mode) {
+    if (!statusPill) return;
+    statusPill.textContent = label;
+    statusPill.classList.toggle("error", mode === "error");
+    statusPill.classList.toggle("ready", mode === "ready");
+  }
 
   function setStatus(message, isError) {
     if (!status) return;
     status.textContent = message;
     status.classList.toggle("error", Boolean(isError));
+    if (isError) {
+      setPill("Needs attention", "error");
+    }
   }
 
   function setFormStatus(message, isError) {
@@ -33,6 +57,9 @@
     formStatus.textContent = message;
     formStatus.classList.remove("hidden");
     formStatus.classList.toggle("error", Boolean(isError));
+    if (isError) {
+      setPill("Needs attention", "error");
+    }
   }
 
   function setStatusDetail(message) {
@@ -46,6 +73,12 @@
     statusDetail.classList.remove("hidden");
   }
 
+  function setSubmitState(disabled, label) {
+    if (!submitButton) return;
+    submitButton.disabled = disabled;
+    submitButton.textContent = label;
+  }
+
   function showPollStep() {
     if (timerStep) timerStep.classList.add("hidden");
     if (pollStep) pollStep.classList.remove("hidden");
@@ -54,6 +87,13 @@
   function showTimerStep() {
     if (pollStep) pollStep.classList.add("hidden");
     if (timerStep) timerStep.classList.remove("hidden");
+  }
+
+  function updateSelectedLease() {
+    leaseOptions.forEach((option) => {
+      const input = option.querySelector("input");
+      option.classList.toggle("selected", Boolean(input && input.checked));
+    });
   }
 
   function stopCountdown() {
@@ -69,6 +109,7 @@
       stopCountdown();
       countdown.classList.add("hidden");
       countdownValue.textContent = "--:--";
+      if (countdownCaption) countdownCaption.textContent = "automatic stop disabled";
       return;
     }
 
@@ -81,19 +122,24 @@
     }
 
     countdown.classList.remove("hidden");
+    if (countdownCaption) countdownCaption.textContent = "remaining";
 
     const updateCountdown = function () {
       const remaining = deadline.getTime() - Date.now();
       if (remaining <= 0) {
         countdownValue.textContent = "00:00";
+        if (countdownCaption) countdownCaption.textContent = "expired";
         stopCountdown();
         return;
       }
 
       const totalSeconds = Math.ceil(remaining / 1000);
-      const minutes = Math.floor(totalSeconds / 60);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
       const seconds = totalSeconds % 60;
-      countdownValue.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+      countdownValue.textContent = hours > 0
+        ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+        : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     };
 
     updateCountdown();
@@ -102,45 +148,86 @@
   }
 
   async function poll() {
-    const params = new URLSearchParams({ host: cfg.host, returnTo: cfg.returnTo });
-    const res = await fetch(`${cfg.publicPath}/api/status?${params}`, { headers: { Accept: "application/json" } });
+    const res = await fetch(waitURL({ host: cfg.host, returnTo: cfg.returnTo, format: "status" }), { headers: { Accept: "application/json" } });
     if (!res.ok) {
       throw new Error("status fetch failed");
     }
     return res.json();
   }
 
+  async function readErrorMessage(res, fallback) {
+    const prefix = `${res.status} ${res.statusText || "request failed"}`.trim();
+    try {
+      const text = (await res.text()).trim();
+      if (text) return `${prefix}: ${text}`;
+    } catch (_) {
+      // Fall through to the fallback below.
+    }
+    return `${prefix}: ${fallback}`;
+  }
+
+  function applyLease(leaseData) {
+    waitingForLease = false;
+    showPollStep();
+    setPill("Timer active", "ready");
+    if (pollCopy) {
+      pollCopy.textContent = leaseData.never
+        ? "Timer saved. Reveille will keep watching readiness with automatic stop disabled."
+        : "Timer saved. Reveille will send you through as soon as readiness checks pass.";
+    }
+    renderCountdown(leaseData.never ? null : leaseData.expiresAt);
+    setStatus("Waiting for health check...", false);
+    setStatusDetail("");
+    setSubmitState(false, "Saved");
+  }
+
   function applyStatus(data) {
     if (!data) return false;
-    if (data.healthy) {
+    waitingForLease = !data.leaseActive;
+
+    if (data.healthy && data.leaseActive) {
+      setPill("Ready", "ready");
       window.location.assign(data.returnTo || "/");
       return true;
     }
 
-    const message = data.statusMessage || "App start was requested. Waiting for health check before redirect.";
+    const message = data.statusMessage || "Waiting for health check...";
     if (data.leaseActive) {
       showPollStep();
+      setPill(data.never ? "No stop" : "Timer active", "ready");
       if (pollCopy) {
         pollCopy.textContent = pollCopyText(data);
       }
       renderCountdown(data.never ? null : data.expiresAt);
       setStatus(message, false);
       setStatusDetail(detailMessage(data));
+      setSubmitState(false, "Saved");
       return true;
     }
 
     renderCountdown(null);
     showTimerStep();
+    setPill(data.healthy ? "Ready" : "Starting", data.healthy ? "ready" : "");
     setStatusDetail("");
+    setSubmitState(false, "Start Timer");
+    if (timerCopy) {
+      timerCopy.textContent = data.healthy
+        ? "The app is ready. Choose a run window to continue."
+        : "The app is waking up. Pick how long it should stay available.";
+    }
     setFormStatus(message, false);
     return false;
   }
 
-  function startPolling() {
+  function startPolling(initialData) {
     if (pollTimer) return;
-    poll()
-      .then(applyStatus)
-      .catch(() => { setStatus("Unable to check app status yet.", true); });
+    if (initialData) {
+      applyStatus(initialData);
+    } else {
+      poll()
+        .then(applyStatus)
+        .catch(() => { setStatus("Unable to check app status yet.", true); });
+    }
     pollTimer = setInterval(() => {
       poll()
         .then((data) => {
@@ -149,37 +236,45 @@
             pollTimer = null;
           }
         })
-        .catch(() => { setStatus("Unable to check app status yet.", true); });
+        .catch(() => {
+          if (waitingForLease) {
+            setFormStatus("Unable to confirm readiness yet.", true);
+            return;
+          }
+          setStatus("Unable to check app status yet.", true);
+        });
     }, cfg.pollMillis || 5000);
   }
 
-  async function reconcileAfterLeaseAttempt(defaultMessage, errorMessage) {
+  async function reconcileLeaseFailure(fallbackMessage) {
     try {
       const data = await poll();
-      const activeLease = applyStatus(data);
-      if (activeLease) {
-        setFormStatus(defaultMessage, false);
-        startPolling();
+      if (data && data.leaseActive) {
+        applyStatus(data);
+        setFormStatus("Timer started. Waiting for health check...", false);
+        if (!pollTimer) {
+          startPolling(data);
+        }
         return;
       }
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Start Timer";
-      }
-      setFormStatus(errorMessage, true);
     } catch (_) {
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Start Timer";
-      }
-      setFormStatus(errorMessage, true);
+      // If status is unavailable too, fall back to the original error below.
     }
+
+    setSubmitState(false, "Start Timer");
+    setFormStatus(fallbackMessage, true);
   }
+
+  leaseOptions.forEach((option) => {
+    option.addEventListener("change", updateSelectedLease);
+    option.addEventListener("click", updateSelectedLease);
+  });
+  updateSelectedLease();
 
   poll()
     .then((data) => {
       if (applyStatus(data)) {
-        startPolling();
+        startPolling(data);
       }
     })
     .catch(() => { setFormStatus("Unable to check app status yet.", true); });
@@ -189,48 +284,48 @@
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
     const body = new FormData(form);
-    const params = new URLSearchParams({ host: cfg.host });
-    if (submitButton) {
-      submitButton.disabled = true;
-      submitButton.textContent = "Saving...";
-    }
-    setFormStatus("Saving timer and checking app status...", false);
+    setSubmitState(true, "Saving...");
+    setPill("Saving", "");
+    setFormStatus("Saving timer...", false);
 
     try {
-      const res = await fetch(`${cfg.publicPath}/api/lease?${params}`, { method: "POST", body });
+      const res = await fetch(waitURL({ host: cfg.host }), { method: "POST", body });
       if (res.ok) {
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.textContent = "Saved";
+        const data = await res.json();
+        if (data && (data.never || data.expiresAt)) {
+          applyLease(data);
+          setFormStatus("Timer saved. Waiting for health check...", false);
+          if (!pollTimer) {
+            startPolling();
+          }
+          return;
         }
-        await reconcileAfterLeaseAttempt("Timer saved. Waiting for health check...", "Timer save could not be confirmed on the server.");
+        setSubmitState(false, "Start Timer");
+        setFormStatus("Timer save response was missing lease details.", true);
         return;
       }
+      const message = await readErrorMessage(res, "Timer update failed.");
+      await reconcileLeaseFailure(`Timer update failed: ${message}`);
+      return;
     } catch (_) {
-      // Reconcile against backend state below after transient fetch failures.
+      await reconcileLeaseFailure("Timer update failed because the browser could not confirm the server response.");
     }
-
-    if (submitButton) {
-      submitButton.disabled = false;
-      submitButton.textContent = "Start Timer";
-    }
-    await reconcileAfterLeaseAttempt("Timer already active on the server. Waiting for health check...", "Timer update failed and no active lease was found.");
   });
 
   function pollCopyText(data) {
     if (data.readinessState === "health_unreachable") {
       return data.never
-        ? "Reveille saved a no-stop lease, but the health endpoint is not reachable yet."
-        : "Reveille saved your timer, but the health endpoint is not reachable yet.";
+        ? "No-stop timer saved. Reveille cannot reach the health endpoint yet."
+        : "Timer saved. Reveille cannot reach the health endpoint yet.";
     }
     if (data.readinessState === "health_unhealthy") {
       return data.never
-        ? "Reveille saved a no-stop lease, but the health endpoint is returning a non-healthy status."
-        : "Reveille saved your timer, but the health endpoint is returning a non-healthy status.";
+        ? "No-stop timer saved. The health endpoint is not healthy yet."
+        : "Timer saved. The health endpoint is not healthy yet.";
     }
     return data.never
-      ? "Reveille saved a no-stop lease. This page will redirect automatically as soon as readiness checks pass."
-      : "Reveille saved your timer. This page will redirect automatically as soon as readiness checks pass.";
+      ? "No-stop timer saved. Reveille will send you through when readiness checks pass."
+      : "Timer saved. Reveille will send you through when readiness checks pass.";
   }
 
   function detailMessage(data) {
@@ -238,7 +333,7 @@
       return data.healthError ? `Health check error: ${data.healthError}` : "Reveille cannot reach the configured health endpoint yet.";
     }
     if (data.readinessState === "health_unhealthy") {
-      return data.healthStatus ? `Health check returned HTTP ${data.healthStatus}. Redirect will stay blocked until a healthy status is returned.` : "Health check returned a non-healthy response.";
+      return data.healthStatus ? `Health check returned HTTP ${data.healthStatus}.` : "Health check returned a non-healthy response.";
     }
     if (data.lastCheck) {
       return `Last health check: ${new Date(data.lastCheck).toLocaleTimeString()}.`;

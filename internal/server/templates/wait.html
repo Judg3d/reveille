@@ -7,39 +7,68 @@
   <link rel="stylesheet" href="{{.PublicPath}}/static/wait.css">
 </head>
 <body>
-  <main class="shell">
-    <section class="panel">
-      <div id="timer-step" class="step">
-        <p class="eyebrow">Reveille</p>
-        <h1>{{.Host}} is sleeping</h1>
-        <p class="copy">Reveille has already requested start for this app. Pick how long to keep it running, then Reveille will wait here and redirect automatically when health checks pass.</p>
-        <form id="lease-form" class="lease" method="post" action="{{.PublicPath}}/api/lease?host={{.Host}}">
-          <label for="lease">Timer</label>
-          <div class="lease-row">
-            <select id="lease" name="lease">
+  <main class="shell" data-host="{{.Host}}">
+    <section class="surface" aria-labelledby="page-title">
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Reveille</p>
+          <h1 id="page-title">{{.Host}}</h1>
+        </div>
+        <div id="status-pill" class="status-pill" aria-live="polite">Starting</div>
+      </header>
+
+      <div id="timer-step" class="step timer-step">
+        <div class="message">
+          <h2>Choose a run window</h2>
+          <p id="timer-copy" class="copy">The app is waking up. Pick how long it should stay available.</p>
+        </div>
+
+        <form id="lease-form" class="lease" method="post" action="{{.PublicPath}}/wait?host={{.Host}}">
+          <input type="hidden" name="action" value="lease">
+          <fieldset>
+            <legend>Timer</legend>
+            <div class="lease-options">
               {{range .LeaseOptions}}
-              <option value="{{.Label}}" {{if eq .Label $.LeaseDefault}}selected{{end}}>{{.Label}}</option>
+              <label class="lease-option {{if eq .Label $.LeaseDefault}}selected{{end}}">
+                <input type="radio" name="lease" value="{{.Label}}" {{if eq .Label $.LeaseDefault}}checked{{end}}>
+                <span>{{.Label}}</span>
+              </label>
               {{end}}
-            </select>
+            </div>
+          </fieldset>
+          <div class="action-row">
             <button id="lease-submit" type="submit">Start Timer</button>
           </div>
         </form>
         <div id="form-status" class="status hidden" aria-live="polite"></div>
       </div>
-      <div id="poll-step" class="step hidden" aria-live="polite">
-        <p class="eyebrow">Reveille</p>
-        <h1>{{.Host}} is starting</h1>
-        <p id="poll-copy" class="copy">Polling health every 5 seconds. This page will redirect to your app automatically as soon as it is ready.</p>
-        <div id="countdown" class="countdown hidden">
-          <span class="countdown-label">Timer</span>
-          <strong id="countdown-value">--:--</strong>
+
+      <div id="poll-step" class="step poll-step hidden" aria-live="polite">
+        <div class="message">
+          <h2>Waiting for readiness</h2>
+          <p id="poll-copy" class="copy">Timer saved. Reveille will send you through as soon as health checks pass.</p>
         </div>
-        <div class="status" id="status">Waiting for health check...</div>
-        <div id="status-detail" class="status-detail hidden"></div>
-        <form method="post" action="{{.PublicPath}}/api/stop?host={{.Host}}">
-          <button class="secondary" type="submit">Stop now</button>
+
+        <div id="countdown" class="countdown hidden">
+          <span class="countdown-label">Run window</span>
+          <strong id="countdown-value">--:--</strong>
+          <span id="countdown-caption" class="countdown-caption">remaining</span>
+        </div>
+
+        <div class="readiness">
+          <div class="readiness-pulse" aria-hidden="true"></div>
+          <div>
+            <div class="status" id="status">Waiting for health check...</div>
+            <div id="status-detail" class="status-detail hidden"></div>
+          </div>
+        </div>
+
+        <form class="stop-form" method="post" action="{{.PublicPath}}/wait?host={{.Host}}">
+          <input type="hidden" name="action" value="stop">
+          <button class="secondary" type="submit">Stop App</button>
         </form>
       </div>
+
       <noscript>
         <div class="status">
           JavaScript is required for automatic polling and redirect.
