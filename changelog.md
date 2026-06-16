@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-16
+
+- Fixed Traefik forward-auth redirects to use the public forwarded host/proto
+  instead of leaking the internal `http://reveille:8080` service URL back to
+  browsers.
+- Added tests covering public wait-page redirect generation and relative-path
+  fallback behavior.
+- Narrowed host parsing to a single keyed `target:` map format, with each map
+  key becoming the default target name when `name` is omitted.
+- Removed older top-level `host` and `targets:` list layouts from the parser so
+  configuration matches the documented canonical shape.
+- Added host-loader tests for the keyed `target:` map shape, including explicit
+  name override behavior and rejection of legacy layouts.
+
 ## 2026-05-18
 
 - Defined Reveille as a Go service that integrates with Traefik via
