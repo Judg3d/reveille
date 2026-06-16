@@ -17,6 +17,9 @@ server:
   listen: ":8080"
   publicPath: "/_reveille"
 
+log:
+  level: "info"
+
 dockhand:
   baseUrl: "http://dockhand:3000"
   environmentId: 1
@@ -45,6 +48,25 @@ server:
 
 - `server.listen`: address Reveille listens on
 - `server.publicPath`: public path prefix used for the wait UI and Reveille API
+
+## Log
+
+```yaml
+log:
+  level: "info"
+```
+
+- `log.level`: global log threshold for Reveille runtime messages
+- Supported values: `debug`, `info`, `warn`, `warning`, `error`
+- Default: `info`
+- `warning` is accepted and normalized to `warn`
+
+Recommended use:
+
+- `info`: normal day-to-day operations
+- `debug`: active troubleshooting when you want extra runtime detail
+- `warn`: quieter production logs that still keep suspicious conditions
+- `error`: failures only
 
 ## Dockhand
 
