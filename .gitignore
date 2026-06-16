@@ -2,13 +2,13 @@
 .env
 .env.*
 !.env.example
+!internal/hosts
 
 # Local runtime compose file; keep compose.example.yml tracked.
 compose.yml
 
 # Host configs may contain private hostnames/container names.
-hosts/*
-hosts
+targets/
 
 # Root-level binary from `go build`; does not ignore cmd/reveille/.
 /reveille
