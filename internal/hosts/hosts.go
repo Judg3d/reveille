@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"reveille/internal/config"
+	"reveille/internal/logging"
 	"gopkg.in/yaml.v3"
 )
 
@@ -55,15 +58,23 @@ type Store struct {
 	dir      string
 	defaults config.Defaults
 	byHost   map[string]Host
+	state    string
+	logger   *logging.Logger
 }
 
-func LoadDir(dir string, defaults config.Defaults) (*Store, error) {
-	store := &Store{dir: dir, defaults: defaults, byHost: map[string]Host{}}
+func LoadDir(dir string, defaults config.Defaults, logger ...*logging.Logger) (*Store, error) {
+	store := &Store{
+		dir:      dir,
+		defaults: defaults,
+		byHost:   map[string]Host{},
+		logger:   firstLogger(logger),
+	}
 	loaded, err := loadDir(dir, defaults)
 	if err != nil {
 		return nil, err
 	}
 	store.byHost = loaded
+	store.state = snapshotState(loaded)
 	return store, nil
 }
 
@@ -193,15 +204,18 @@ func (s *Store) Lookup(host string) (Host, bool) {
 	return h, ok
 }
 
-func (s *Store) Reload() error {
+func (s *Store) Reload() (bool, int, error) {
 	loaded, err := loadDir(s.dir, s.defaults)
 	if err != nil {
-		return err
+		return false, 0, err
 	}
+	state := snapshotState(loaded)
 	s.mu.Lock()
+	changed := state != s.state
 	s.byHost = loaded
+	s.state = state
 	s.mu.Unlock()
-	return nil
+	return changed, len(loaded), nil
 }
 
 func (s *Store) Watch(ctx context.Context, interval time.Duration, onError func(error)) {
@@ -215,11 +229,51 @@ func (s *Store) Watch(ctx context.Context, interval time.Duration, onError func(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.Reload(); err != nil && onError != nil {
-				onError(err)
+			changed, count, err := s.Reload()
+			if err != nil {
+				if onError != nil {
+					onError(err)
+				}
+				continue
+			}
+			if changed {
+				s.logger.Infof("reloaded %d host entries from %s", count, s.dir)
 			}
 		}
 	}
+}
+
+func firstLogger(loggers []*logging.Logger) *logging.Logger {
+	if len(loggers) > 0 && loggers[0] != nil {
+		return loggers[0]
+	}
+	return logging.Must("info")
+}
+
+func snapshotState(byHost map[string]Host) string {
+	keys := make([]string, 0, len(byHost))
+	for key := range byHost {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		host := byHost[key]
+		parts = append(parts, strings.Join([]string{
+			host.Host,
+			host.Target.Type,
+			host.Target.ID,
+			host.Target.Name,
+			host.Target.Environment,
+			host.Target.Hostname,
+			host.Target.HealthURL,
+			strconv.Itoa(len(host.Lease.Options)),
+			host.Lease.Default.Label,
+			host.Routing.ReturnToHeader,
+		}, "|"))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func validateHost(path string, index int, h Host) (Host, error) {
