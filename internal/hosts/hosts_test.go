@@ -14,6 +14,7 @@ func TestLookupByForwardedHostIgnoresPort(t *testing.T) {
 target:
   jellyfin:
     type: container
+    id: jellyfin
     hostname: jellyfin.example.com
     healthUrl: http://jellyfin:8096/health
     healthyStatus:
@@ -60,7 +61,7 @@ target:
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Reload(); err != nil {
+	if _, _, err := store.Reload(); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := store.Lookup("one.example.com"); ok {
