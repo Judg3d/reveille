@@ -14,5 +14,4 @@ services:
       - "${REVEILLE_PORT:-8080}:8080"
     volumes:
       - ./reveille.yml:/etc/reveille/reveille.yml:ro
-      - ./hosts:/etc/reveille/hosts:ro
-      
+      - ./target:/etc/reveille/hosts:ro # DO NOT CHANGE INTERNAL MOUNT
