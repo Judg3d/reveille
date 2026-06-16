@@ -2,6 +2,23 @@
 
 ## 2026-06-16
 
+- Added a configurable `log.level` setting in `reveille.yml` with leveled
+  runtime logging (`debug`, `info`, `warn`, `error`) across startup, host
+  reloads, lease lifecycle, and wait-page/server flows.
+- Documented `log.level` in `reveille.yml` and the config reference, with
+  `info` as the default runtime logging level and `warning` accepted as `warn`.
+- Reworked the wait-page status flow so the browser reconciles against
+  `/_reveille/api/status` on load and after every lease POST attempt, instead of
+  trusting the POST result alone.
+- Expanded status responses with explicit `leaseActive` and `statusMessage`
+  fields, added lease/status logging, and surfaced clearer UI messaging when
+  redirect is still blocked on health checks.
+- Added readiness diagnostics to `/_reveille/api/status`, including
+  `readinessState`, `healthError`, `healthStatus`, and `lastCheck`, and updated
+  the wait page to show whether the health endpoint is unreachable or simply
+  returning a non-healthy response.
+- Added config and status tests covering log-level parsing plus lease-backed
+  `/api/status` responses for finite, `Never`, and healthy states.
 - Fixed Traefik forward-auth redirects to use the public forwarded host/proto
   instead of leaking the internal `http://reveille:8080` service URL back to
   browsers.
