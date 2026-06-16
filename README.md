@@ -26,7 +26,7 @@ User -> Traefik router -> Reveille forwardAuth -> Dockhand API -> Target contain
 
 Reveille follows Traefik's static plus dynamic config pattern:
 
-- `config.yml` contains Reveille's own settings, including Dockhand connection,
+- `reveille.yml` contains Reveille's own settings, including Dockhand connection,
   default leases, poll interval, and listen address.
 - `hosts/` contains one file per managed host and is watched for live changes.
 
@@ -43,19 +43,22 @@ templates and a small amount of vanilla JavaScript for 5-second status polling,
 so Reveille should not need a Node, React, or Vite frontend build unless the UI
 requirements grow substantially.
 
-## Behavior
+## Documentation
 
-Runtime behavior, Traefik wiring, Dockhand endpoints, lease handling, and the
-HTTP contract are documented in [docs/behavior.md](docs/behavior.md).
+Traefik wiring is documented in
+[docs/traefik-wiring.md](docs/traefik-wiring.md).
+Host file authoring is documented in
+[docs/host-file/get-started.md](docs/host-file/get-started.md), and runtime
+config is documented in [docs/reveille-yml.md](docs/reveille-yml.md).
 
 ## Build And Run
 
 ```sh
 go test ./...
-go run ./cmd/reveille -config config.yml -hosts hosts
+go run ./cmd/reveille -config reveille.yml -hosts hosts
 ```
 
-If `config.yml` is missing, Reveille starts with documented defaults. If the
+If `reveille.yml` is missing, Reveille starts with documented defaults. If the
 `hosts/` directory is missing, no hosts are managed and the forward-auth
 endpoint returns `204 No Content`.
 

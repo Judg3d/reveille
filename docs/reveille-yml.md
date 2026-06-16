@@ -1,0 +1,97 @@
+# Reveille.yml Reference
+
+`reveille.yml` is Reveille's runtime configuration file. It controls the HTTP
+server, Dockhand connection defaults, and lease behavior.
+
+Use [host-file/get-started.md](host-file/get-started.md) for per-host target
+files. Use this page for the main service-level config.
+
+## Canonical Filename
+
+Use `reveille.yml` as the primary runtime config filename.
+
+Example:
+
+```yaml
+server:
+  listen: ":8080"
+  publicPath: "/_reveille"
+
+dockhand:
+  baseUrl: "http://dockhand:3000"
+  environmentId: 1
+  timeout: "30s"
+
+defaults:
+  lease: "2h"
+  leaseOptions:
+    - "30m"
+    - "1h"
+    - "2h"
+    - "4h"
+    - "never"
+  startTimeout: "3m"
+  stopGrace: "30s"
+  pollInterval: "5s"
+```
+
+## Server
+
+```yaml
+server:
+  listen: ":8080"
+  publicPath: "/_reveille"
+```
+
+- `server.listen`: address Reveille listens on
+- `server.publicPath`: public path prefix used for the wait UI and Reveille API
+
+## Dockhand
+
+```yaml
+dockhand:
+  baseUrl: "http://dockhand:3000"
+  environmentId: 1
+  timeout: "30s"
+```
+
+- `dockhand.baseUrl`: Dockhand API base URL
+- `dockhand.environmentId`: default Dockhand environment used when a target
+  entry does not override `environment`
+- `dockhand.timeout`: HTTP timeout for Dockhand API calls
+- `DOCKHAND_API_TOKEN`: optional bearer token provided through the environment
+
+Use `target.<name>.environment` in the host file when a specific target needs a
+different Dockhand environment than the default.
+
+## Defaults
+
+```yaml
+defaults:
+  lease: "2h"
+  leaseOptions:
+    - "30m"
+    - "1h"
+    - "2h"
+    - "4h"
+    - "never"
+  startTimeout: "3m"
+  stopGrace: "30s"
+  pollInterval: "5s"
+```
+
+- `defaults.lease`: default lease applied on the wait page
+- `defaults.leaseOptions`: selectable lease durations shown to the user
+- `defaults.startTimeout`: maximum time allowed for a start operation
+- `defaults.stopGrace`: timeout used when stopping a target
+- `defaults.pollInterval`: how often the wait page checks target readiness
+
+Durations use Go duration syntax such as `30m`, `1h`, `2h`, or `4h3m`.
+
+## How It Relates To Host Files
+
+- `reveille.yml` defines service-wide defaults
+- `target.<name>.environment` overrides the default Dockhand environment for a
+  specific host entry
+- `lease:` and `routing:` blocks inside a host file override the global
+  defaults for that host entry only
