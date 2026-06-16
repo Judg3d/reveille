@@ -95,7 +95,7 @@ func (s *Server) forwardAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	returnTo := originalURL(r, host)
-	http.Redirect(w, r, s.waitURL(host.Host, returnTo), http.StatusFound)
+	http.Redirect(w, r, s.waitURL(r, host.Host, returnTo), http.StatusFound)
 }
 
 func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
@@ -234,10 +234,16 @@ func (s *Server) hostFromRequest(r *http.Request) (hosts.Host, bool) {
 	return s.deps.Hosts.Lookup(hostName)
 }
 
-func (s *Server) waitURL(host, returnTo string) string {
+func (s *Server) waitURL(r *http.Request, host, returnTo string) string {
 	public := strings.TrimRight(s.deps.Config.Server.PublicPath, "/")
 	q := url.Values{"host": {host}, "returnTo": {sanitizeReturnTo(returnTo)}}
-	return public + "/wait?" + q.Encode()
+	path := public + "/wait?" + q.Encode()
+
+	base := publicBaseURL(r)
+	if base == "" {
+		return path
+	}
+	return base + path
 }
 
 func originalURL(r *http.Request, host hosts.Host) string {
@@ -257,6 +263,34 @@ func sanitizeReturnTo(raw string) string {
 		return "/"
 	}
 	return raw
+}
+
+func publicBaseURL(r *http.Request) string {
+	host := firstHeaderValue(r.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = r.Host
+	}
+	if host == "" {
+		return ""
+	}
+
+	proto := firstHeaderValue(r.Header.Get("X-Forwarded-Proto"))
+	if proto == "" {
+		if r.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "http"
+		}
+	}
+
+	return proto + "://" + host
+}
+
+func firstHeaderValue(value string) string {
+	if i := strings.Index(value, ","); i >= 0 {
+		value = value[:i]
+	}
+	return strings.TrimSpace(value)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
