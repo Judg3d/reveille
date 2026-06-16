@@ -13,7 +13,7 @@ Implementation direction:
 - Use Go for the server, Dockhand client, config, leases, scheduler, templates,
   and embedded assets.
 - Use the current stable Go toolchain pinned in `go.mod` and CI. As of
-  2026-05-19 this project targets Go 1.26 with toolchain go1.26.3.
+  2026-06-16 this project targets Go 1.26 with toolchain go1.26.4.
 - Keep dependencies current before release work. Check with `go list -m -u all`;
   `gopkg.in/yaml.v3 v3.0.1` is the current YAML parser dependency.
 - Use plain HTML/CSS/vanilla JS for the wait page; no Node frontend needed.
