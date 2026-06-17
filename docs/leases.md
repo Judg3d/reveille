@@ -62,7 +62,11 @@ Content-Type: multipart/form-data
 
 action=lease
 lease=2h
+token=<wait-token>
 ```
+
+The wait token comes from Reveille's `forwardAuth` redirect and is bound to the
+managed host.
 
 The selected `lease` value must match one of the host's configured lease option
 labels. Matching is case-insensitive. If the request omits `lease`, Reveille
@@ -71,7 +75,7 @@ uses the host's default lease.
 The compatibility lease API uses the same handler:
 
 ```http
-POST /_reveille/api/lease?host=app.example.com
+POST /_reveille/api/lease?host=app.example.com&token=<wait-token>
 ```
 
 It accepts form data and JSON:
@@ -139,6 +143,7 @@ POST /_reveille/wait?host=app.example.com
 Content-Type: multipart/form-data
 
 action=stop
+token=<wait-token>
 ```
 
 Manual stop:
@@ -151,7 +156,7 @@ Manual stop:
 The compatibility route calls the same stop behavior:
 
 ```http
-POST /_reveille/api/stop?host=app.example.com
+POST /_reveille/api/stop?host=app.example.com&token=<wait-token>
 ```
 
 On success, Reveille returns:

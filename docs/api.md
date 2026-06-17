@@ -97,8 +97,12 @@ Responses:
 When Reveille redirects, the `Location` header points to:
 
 ```text
-https://app.example.com/_reveille/wait?host=app.example.com&returnTo=/docs
+https://app.example.com/_reveille/wait?host=app.example.com&returnTo=/docs&token=<wait-token>
 ```
+
+The wait token is signed by Reveille, expires after 24 hours, and is bound to
+the managed host and sanitized return path. Wait, status, lease, and stop routes
+reject missing, expired, invalid, or host-mismatched tokens.
 
 ## `GET /_reveille/wait`
 
@@ -107,7 +111,7 @@ Renders the wait page.
 Example:
 
 ```text
-GET /_reveille/wait?host=app.example.com&returnTo=/docs
+GET /_reveille/wait?host=app.example.com&returnTo=/docs&token=<wait-token>
 ```
 
 Query parameters:
@@ -116,6 +120,7 @@ Query parameters:
 | --- | --- | --- |
 | `host` | yes, unless forwarded/request host identifies the target | managed host |
 | `returnTo` | no | local path to return to after readiness |
+| `token` | yes | signed wait token from the `forwardAuth` redirect |
 
 `returnTo` is sanitized. Empty, absolute, protocol-relative, invalid, or
 non-`/` paths become `/`.
@@ -125,6 +130,7 @@ Response:
 | Status | Content |
 | --- | --- |
 | `200 OK` | HTML wait page |
+| `403 Forbidden` | Wait token is missing, invalid, expired, or for a different host |
 | `404 Not Found` | Host is not managed by Reveille |
 | `500 Internal Server Error` | Wait-page config could not be rendered |
 
@@ -135,7 +141,7 @@ Returns wait/status JSON. This is the canonical browser status endpoint.
 Example:
 
 ```text
-GET /_reveille/wait?host=app.example.com&returnTo=/docs&format=status
+GET /_reveille/wait?host=app.example.com&returnTo=/docs&format=status&token=<wait-token>
 ```
 
 Query parameters:
@@ -143,8 +149,9 @@ Query parameters:
 | Parameter | Required | Purpose |
 | --- | --- | --- |
 | `host` | yes, unless forwarded/request host identifies the target | managed host |
-| `returnTo` | no | local path returned in status JSON |
+| `returnTo` | no | ignored when token is present; token return path is returned |
 | `format=status` | yes | dispatches the wait route to status JSON |
+| `token` | yes | signed wait token from the `forwardAuth` redirect |
 
 Example response:
 
@@ -184,6 +191,7 @@ Statuses:
 | Status | Meaning |
 | --- | --- |
 | `200 OK` | Status JSON returned |
+| `403 Forbidden` | Wait token is missing, invalid, expired, or for a different host |
 | `404 Not Found` | Host is not managed by Reveille |
 | `502 Bad Gateway` | Dockhand readiness check failed |
 
@@ -201,6 +209,7 @@ Content-Type: multipart/form-data
 
 action=lease
 lease=2h
+token=<wait-token>
 ```
 
 The `action=lease` value is optional on this route. Any `POST` to
@@ -238,6 +247,7 @@ POST /_reveille/wait?host=app.example.com
 Content-Type: multipart/form-data
 
 action=stop
+token=<wait-token>
 ```
 
 Response:
@@ -252,6 +262,7 @@ Statuses:
 | --- | --- |
 | `200 OK` | Lease created or target stopped |
 | `400 Bad Request` | Invalid lease option |
+| `403 Forbidden` | Wait token is missing, invalid, expired, or for a different host |
 | `404 Not Found` | Host is not managed by Reveille |
 | `502 Bad Gateway` | Stop failed |
 
@@ -267,13 +278,13 @@ Compatibility status endpoint.
 Example:
 
 ```text
-GET /_reveille/api/status?host=app.example.com&returnTo=/docs
+GET /_reveille/api/status?host=app.example.com&returnTo=/docs&token=<wait-token>
 ```
 
 Response shape and status codes match:
 
 ```text
-GET /_reveille/wait?host=app.example.com&returnTo=/docs&format=status
+GET /_reveille/wait?host=app.example.com&returnTo=/docs&format=status&token=<wait-token>
 ```
 
 ### `POST /_reveille/api/lease`
@@ -283,7 +294,7 @@ Compatibility lease endpoint.
 Form example:
 
 ```http
-POST /_reveille/api/lease?host=app.example.com
+POST /_reveille/api/lease?host=app.example.com&token=<wait-token>
 Content-Type: application/x-www-form-urlencoded
 
 lease=2h
@@ -294,6 +305,7 @@ JSON example:
 ```http
 POST /_reveille/api/lease?host=app.example.com
 Content-Type: application/json
+X-Reveille-Token: <wait-token>
 
 {"lease":"2h"}
 ```
@@ -311,7 +323,7 @@ Compatibility stop endpoint.
 Example:
 
 ```text
-POST /_reveille/api/stop?host=app.example.com
+POST /_reveille/api/stop?host=app.example.com&token=<wait-token>
 ```
 
 Response shape and status codes match the stop branch of:

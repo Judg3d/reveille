@@ -97,7 +97,7 @@ to the wait UI.
 After the browser reaches the wait UI, it polls:
 
 ```text
-GET /_reveille/wait?host=app.example.com&returnTo=/docs&format=status
+GET /_reveille/wait?host=app.example.com&returnTo=/docs&format=status&token=<wait-token>
 ```
 
 The status response tells the UI whether the target is healthy, whether a lease

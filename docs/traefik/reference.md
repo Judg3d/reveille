@@ -132,6 +132,9 @@ The wait page uses `/_reveille/wait` as its browser control channel:
 | `GET` | `/_reveille/wait?...&format=status` | Return status JSON |
 | `POST` | `/_reveille/wait?...` | Create a lease or stop the app by form action |
 
+These wait UI calls require the signed wait token from Reveille's `forwardAuth`
+redirect. The token is bound to the managed host.
+
 Compatibility routes may still exist:
 
 | Method | Path | Purpose |

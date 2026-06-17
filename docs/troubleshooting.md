@@ -43,11 +43,14 @@ Check the wait route through Traefik:
 ```sh
 docker exec traefik wget -S -O- --no-check-certificate \
   --header 'Host: app.example.com' \
-  'https://127.0.0.1/_reveille/wait?host=app.example.com&format=status'
+  'https://127.0.0.1/_reveille/wait?host=app.example.com&format=status&token=<wait-token>'
 ```
 
 Expected result: JSON from Reveille with fields such as `healthy`,
 `leaseActive`, and `readinessState`.
+
+Use the `token` from a real Reveille redirect or wait-page URL. Missing or
+mismatched tokens return `403 Forbidden`.
 
 If the response is still `404`, check the Traefik `PathPrefix('/_reveille')`
 router, its priority, and its service target.
@@ -71,7 +74,7 @@ Test the timer POST through Traefik:
 ```sh
 docker exec traefik wget -S -O- --no-check-certificate \
   --header 'Host: app.example.com' \
-  --post-data 'action=lease&lease=15m' \
+  --post-data 'action=lease&lease=15m&token=<wait-token>' \
   'https://127.0.0.1/_reveille/wait?host=app.example.com'
 ```
 
@@ -110,7 +113,7 @@ Inspect status JSON:
 ```sh
 docker exec traefik wget -S -O- --no-check-certificate \
   --header 'Host: app.example.com' \
-  'https://127.0.0.1/_reveille/wait?host=app.example.com&returnTo=/&format=status'
+  'https://127.0.0.1/_reveille/wait?host=app.example.com&returnTo=/&format=status&token=<wait-token>'
 ```
 
 Important fields:
@@ -328,7 +331,7 @@ Check timer save directly:
 ```sh
 docker exec traefik wget -S -O- --no-check-certificate \
   --header 'Host: app.example.com' \
-  --post-data 'action=lease&lease=15m' \
+  --post-data 'action=lease&lease=15m&token=<wait-token>' \
   'https://127.0.0.1/_reveille/wait?host=app.example.com'
 ```
 

@@ -141,6 +141,12 @@ Reveille uses forwarded headers from Traefik:
 Reveille sanitizes `returnTo` so redirects stay on local paths. Empty, absolute,
 protocol-relative, invalid, or non-`/` paths become `/`.
 
+Reveille also signs each wait redirect with a 24-hour token. The token is
+bound to the managed host and sanitized return path, and wait/status/lease/stop
+routes reject missing, expired, invalid, or host-mismatched tokens. Mutating
+wait-control requests also reject mismatched `Origin` or `Referer` headers when
+browsers send them.
+
 Traefik should be the trusted source of these headers. Do not point the
 `forwardAuth` middleware at a public domain; use the internal container DNS
 address:

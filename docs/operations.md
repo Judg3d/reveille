@@ -172,7 +172,7 @@ The wait UI route must be reachable through Traefik at the public app host:
 ```sh
 docker exec traefik wget -S -O- --no-check-certificate \
   --header 'Host: app.example.com' \
-  'https://127.0.0.1/_reveille/wait?host=app.example.com&format=status'
+  'https://127.0.0.1/_reveille/wait?host=app.example.com&format=status&token=<wait-token>'
 ```
 
 Expected behavior:
@@ -180,6 +180,9 @@ Expected behavior:
 - the request reaches Reveille
 - the response is JSON
 - the JSON includes `healthy`, `leaseActive`, and `readinessState`
+
+Use the `token` from a real Reveille redirect or wait-page URL. Missing or
+mismatched tokens return `403 Forbidden`.
 
 If this returns `404 NOT_FOUND`, check the Traefik `PathPrefix('/_reveille')`
 route, route priority, and service target for the Reveille UI route.
@@ -191,7 +194,7 @@ Save a lease through the same browser control channel the wait UI uses:
 ```sh
 docker exec traefik wget -S -O- --no-check-certificate \
   --header 'Host: app.example.com' \
-  --post-data 'action=lease&lease=15m' \
+  --post-data 'action=lease&lease=15m&token=<wait-token>' \
   'https://127.0.0.1/_reveille/wait?host=app.example.com'
 ```
 
