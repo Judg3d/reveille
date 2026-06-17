@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,11 +45,7 @@ func TestWaitURLUsesForwardedPublicURL(t *testing.T) {
 	r.Header.Set("X-Forwarded-Host", "pdf.example.com")
 	r.Header.Set("X-Forwarded-Proto", "https")
 
-	got := s.waitURL(r, "pdf.example.com", "/")
-	want := "https://pdf.example.com/_reveille/wait?host=pdf.example.com&returnTo=%2F"
-	if got != want {
-		t.Fatalf("waitURL() = %q, want %q", got, want)
-	}
+	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
 }
 
 func TestWaitURLFallsBackToRelativePath(t *testing.T) {
@@ -62,11 +59,7 @@ func TestWaitURLFallsBackToRelativePath(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
 	r.Host = ""
 
-	got := s.waitURL(r, "pdf.example.com", "/")
-	want := "/_reveille/wait?host=pdf.example.com&returnTo=%2F"
-	if got != want {
-		t.Fatalf("waitURL() = %q, want %q", got, want)
-	}
+	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "", "", "/_reveille/wait", "pdf.example.com", "/")
 }
 
 func TestWaitURLWithRootPublicPath(t *testing.T) {
@@ -80,11 +73,7 @@ func TestWaitURLWithRootPublicPath(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
 	r.Host = ""
 
-	got := s.waitURL(r, "pdf.example.com", "/")
-	want := "/wait?host=pdf.example.com&returnTo=%2F"
-	if got != want {
-		t.Fatalf("waitURL() = %q, want %q", got, want)
-	}
+	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "", "", "/wait", "pdf.example.com", "/")
 }
 
 func TestRoutesMountLeaseAPIAtRootPublicPath(t *testing.T) {
@@ -92,7 +81,7 @@ func TestRoutesMountLeaseAPIAtRootPublicPath(t *testing.T) {
 	s.deps.Config.Server.PublicPath = "/"
 	handler := s.Routes()
 
-	req := httptest.NewRequest("POST", "/api/lease?host=pdf.example.com", strings.NewReader("lease=30m"))
+	req := httptest.NewRequest("POST", "/api/lease?host=pdf.example.com", strings.NewReader("lease=30m&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/"))))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
@@ -116,7 +105,7 @@ func TestWaitRouteCanReturnStatusJSON(t *testing.T) {
 	s, _ := newTestServer(t, http.StatusServiceUnavailable)
 	handler := s.Routes()
 
-	req := httptest.NewRequest("GET", "/_reveille/wait?host=pdf.example.com&returnTo=%2Fdocs&format=status", nil)
+	req := httptest.NewRequest("GET", "/_reveille/wait?host=pdf.example.com&returnTo=%2Fdocs&format=status&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/docs")), nil)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -140,7 +129,7 @@ func TestWaitRouteCanCreateLease(t *testing.T) {
 	s, _ := newTestServer(t, http.StatusServiceUnavailable)
 	handler := s.Routes()
 
-	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m"))
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/"))))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
@@ -164,7 +153,7 @@ func TestWaitPageEmbedsClientConfigAsJSONObject(t *testing.T) {
 	s, _ := newTestServer(t, http.StatusServiceUnavailable)
 	handler := s.Routes()
 
-	req := httptest.NewRequest("GET", "/_reveille/wait?host=pdf.example.com&returnTo=%2Fdocs", nil)
+	req := httptest.NewRequest("GET", "/_reveille/wait?host=pdf.example.com&returnTo=%2Fdocs&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/docs")), nil)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -179,8 +168,127 @@ func TestWaitPageEmbedsClientConfigAsJSONObject(t *testing.T) {
 	if !strings.Contains(body, `"waitPath":"/_reveille/wait"`) {
 		t.Fatalf("wait page missing waitPath config: %s", body)
 	}
+	if !strings.Contains(body, `"token":"`) {
+		t.Fatalf("wait page missing token config: %s", body)
+	}
 	if strings.Contains(body, `"{\"host\"`) {
 		t.Fatalf("wait page config was embedded as a JSON string: %s", body)
+	}
+}
+
+func TestWaitRouteRejectsMissingToken(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+
+	req := httptest.NewRequest("GET", "/_reveille/wait?host=pdf.example.com&returnTo=%2Fdocs", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+}
+
+func TestLeaseRejectsTokenForDifferentHost(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "other.example.com", "/")
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m&token="+url.QueryEscape(token)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+}
+
+func TestLeaseAllowsMatchingOrigin(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "pdf.example.com", "/")
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m&token="+url.QueryEscape(token)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Origin", "https://pdf.example.com")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+}
+
+func TestLeaseRejectsWrongOrigin(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "pdf.example.com", "/")
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m&token="+url.QueryEscape(token)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+}
+
+func TestLeaseAllowsMatchingReferer(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "pdf.example.com", "/")
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m&token="+url.QueryEscape(token)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Referer", "https://pdf.example.com/_reveille/wait?host=pdf.example.com")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+}
+
+func TestLeaseRejectsWrongReferer(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "pdf.example.com", "/")
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com", strings.NewReader("action=lease&lease=30m&token="+url.QueryEscape(token)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Referer", "https://evil.example/form")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+}
+
+func TestWaitTokenExpires(t *testing.T) {
+	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
+	s := New(Dependencies{
+		StartClock: func() time.Time { return now },
+		TokenKey:   []byte("test-token-expiry-key"),
+	})
+	token := waitToken(t, s, "pdf.example.com", "/")
+
+	now = now.Add(waitTokenTTL + time.Second)
+	if _, err := s.verifyWaitToken(token); err == nil {
+		t.Fatal("verifyWaitToken() succeeded for expired token, want error")
 	}
 }
 
@@ -194,7 +302,7 @@ func TestStatusReportsActiveTimedLease(t *testing.T) {
 	start := time.Date(2026, time.June, 16, 12, 0, 0, 0, time.UTC)
 	lease.Set(host, config.LeaseDuration{Label: "1m", Duration: time.Minute}, start)
 
-	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2Fdocs", nil)
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2Fdocs&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/docs")), nil)
 	rec := httptest.NewRecorder()
 
 	s.status(rec, req)
@@ -239,7 +347,7 @@ func TestStatusReportsNeverLease(t *testing.T) {
 
 	lease.Set(host, config.LeaseDuration{Label: "Never", Never: true}, time.Now().UTC())
 
-	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com", nil)
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/")), nil)
 	rec := httptest.NewRecorder()
 
 	s.status(rec, req)
@@ -274,7 +382,7 @@ func TestStatusReportsHealthyRedirectState(t *testing.T) {
 	}
 	lease.Set(host, config.LeaseDuration{Label: "1m", Duration: time.Minute}, time.Now().UTC())
 
-	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2F", nil)
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2F&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/")), nil)
 	rec := httptest.NewRecorder()
 
 	s.status(rec, req)
@@ -301,7 +409,7 @@ func TestStatusReportsHealthyRedirectState(t *testing.T) {
 func TestStatusReportsHealthyWithoutLeaseNeedsTimer(t *testing.T) {
 	s, _ := newTestServer(t, http.StatusOK)
 
-	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2F", nil)
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&returnTo=%2F&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/")), nil)
 	rec := httptest.NewRecorder()
 
 	s.status(rec, req)
@@ -328,7 +436,7 @@ func TestStatusReportsHealthyWithoutLeaseNeedsTimer(t *testing.T) {
 func TestStatusReportsWaitingForTimerWhileAppStarts(t *testing.T) {
 	s, _ := newTestServer(t, http.StatusNotFound)
 
-	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com", nil)
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/")), nil)
 	rec := httptest.NewRecorder()
 
 	s.status(rec, req)
@@ -358,7 +466,7 @@ func TestStatusReportsUnreachableHealthEndpoint(t *testing.T) {
 
 	lease.Set(host, config.LeaseDuration{Label: "1m", Duration: time.Minute}, time.Now().UTC())
 
-	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com", nil)
+	req := httptest.NewRequest("GET", "/_reveille/api/status?host=pdf.example.com&token="+url.QueryEscape(waitToken(t, s, "pdf.example.com", "/")), nil)
 	rec := httptest.NewRecorder()
 
 	s.status(rec, req)
@@ -380,6 +488,53 @@ func TestStatusReportsUnreachableHealthEndpoint(t *testing.T) {
 	if resp.StatusMessage != "App start was requested, but Reveille cannot reach the health endpoint yet." {
 		t.Fatalf("statusMessage = %q", resp.StatusMessage)
 	}
+}
+
+func assertWaitURL(t *testing.T, s *Server, raw, scheme, host, path, targetHost, returnTo string) {
+	t.Helper()
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse wait URL %q: %v", raw, err)
+	}
+	if parsed.Scheme != scheme {
+		t.Fatalf("scheme = %q, want %q in %q", parsed.Scheme, scheme, raw)
+	}
+	if parsed.Host != host {
+		t.Fatalf("host = %q, want %q in %q", parsed.Host, host, raw)
+	}
+	if parsed.Path != path {
+		t.Fatalf("path = %q, want %q in %q", parsed.Path, path, raw)
+	}
+	query := parsed.Query()
+	if query.Get("host") != targetHost {
+		t.Fatalf("target host = %q, want %q in %q", query.Get("host"), targetHost, raw)
+	}
+	if query.Get("returnTo") != returnTo {
+		t.Fatalf("returnTo = %q, want %q in %q", query.Get("returnTo"), returnTo, raw)
+	}
+	token := query.Get("token")
+	if token == "" {
+		t.Fatalf("token missing in %q", raw)
+	}
+	claims, err := s.verifyWaitToken(token)
+	if err != nil {
+		t.Fatalf("verify wait token: %v", err)
+	}
+	if claims.Host != targetHost {
+		t.Fatalf("token host = %q, want %q", claims.Host, targetHost)
+	}
+	if claims.ReturnTo != returnTo {
+		t.Fatalf("token returnTo = %q, want %q", claims.ReturnTo, returnTo)
+	}
+}
+
+func waitToken(t *testing.T, s *Server, host, returnTo string) string {
+	t.Helper()
+	token, err := s.newWaitToken(host, returnTo)
+	if err != nil {
+		t.Fatalf("new wait token: %v", err)
+	}
+	return token
 }
 
 func newTestServer(t *testing.T, healthStatus int) (*Server, *leases.Manager) {
