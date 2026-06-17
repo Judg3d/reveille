@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-17
+
+- Split Traefik documentation into `docs/traefik/get-started.md` and
+  `docs/traefik/reference.md`, leaving `docs/traefik-wiring.md` as a short
+  compatibility landing page.
+- Added a documented `reveille.example.yml` template and made `reveille.yml`
+  local untracked runtime config.
+- Added `docs/runtime-flow.md` to document the end-to-end browser, Traefik,
+  Reveille, Dockhand, wait-page, redirect, and lease-expiry flow.
+- Simplified `README.md` into a general project overview with a minimal Compose
+  example and moved detailed setup links into `docs/README.md`.
+- Added a runtime-flow note that Compose-managed targets should be created with
+  `docker compose up -d --no-start` before Reveille starts them on demand.
+
 ## 2026-06-16
 
 - Rebuilt the wait UI with a clearer timer-selection screen, responsive run
@@ -20,11 +34,6 @@
   `server.go` as the glue layer.
 - Added an `internal/readiness` package for readiness state/message policy, with
   focused tests outside the HTTP handler layer.
-- Split Traefik documentation into `docs/traefik/get-started.md` and
-  `docs/traefik/reference.md`, leaving `docs/traefik-wiring.md` as a short
-  compatibility landing page.
-- Added a documented `reveille.example.yml` template and made `reveille.yml`
-  local untracked runtime config.
 - Added a configurable `log.level` setting in `reveille.yml` with leveled
   runtime logging (`debug`, `info`, `warn`, `error`) across startup, host
   reloads, lease lifecycle, and wait-page/server flows.
