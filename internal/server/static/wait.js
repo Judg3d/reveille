@@ -9,6 +9,16 @@
     return;
   }
 
+  if (cfg.token && window.history && window.history.replaceState) {
+    try {
+      const current = new URL(window.location.href);
+      current.searchParams.delete("token");
+      window.history.replaceState(null, "", current.toString());
+    } catch (_) {
+      // Keeping the token in memory is enough; URL cleanup is best-effort.
+    }
+  }
+
   const status = document.getElementById("status");
   const statusPill = document.getElementById("status-pill");
   const formStatus = document.getElementById("form-status");
@@ -60,6 +70,9 @@
   }
 
   function waitURL(params) {
+    if (cfg.token && !Object.prototype.hasOwnProperty.call(params, "token")) {
+      params.token = cfg.token;
+    }
     const query = new URLSearchParams(params);
     return `${cfg.waitPath || publicURL("/wait")}?${query}`;
   }
