@@ -160,6 +160,30 @@ func TestWaitRouteCanCreateLease(t *testing.T) {
 	}
 }
 
+func TestWaitPageEmbedsClientConfigAsJSONObject(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+
+	req := httptest.NewRequest("GET", "/_reveille/wait?host=pdf.example.com&returnTo=%2Fdocs", nil)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `"host":"pdf.example.com"`) {
+		t.Fatalf("wait page missing host config: %s", body)
+	}
+	if !strings.Contains(body, `"waitPath":"/_reveille/wait"`) {
+		t.Fatalf("wait page missing waitPath config: %s", body)
+	}
+	if strings.Contains(body, `"{\"host\"`) {
+		t.Fatalf("wait page config was embedded as a JSON string: %s", body)
+	}
+}
+
 func TestStatusReportsActiveTimedLease(t *testing.T) {
 	s, lease := newTestServer(t, http.StatusServiceUnavailable)
 	host, ok := s.deps.Hosts.Lookup("pdf.example.com")
