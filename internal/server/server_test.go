@@ -33,7 +33,7 @@ func TestSanitizeReturnToBlocksOpenRedirects(t *testing.T) {
 	}
 }
 
-func TestWaitURLUsesForwardedPublicURL(t *testing.T) {
+func TestWaitURLIgnoresForwardedPublicURL(t *testing.T) {
 	s := &Server{
 		deps: Dependencies{
 			Config: config.Config{
@@ -45,10 +45,10 @@ func TestWaitURLUsesForwardedPublicURL(t *testing.T) {
 	r.Header.Set("X-Forwarded-Host", "pdf.example.com")
 	r.Header.Set("X-Forwarded-Proto", "https")
 
-	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
+	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "", "", "/_reveille/wait", "pdf.example.com", "/")
 }
 
-func TestWaitURLFallsBackToRelativePath(t *testing.T) {
+func TestWaitURLUsesRelativePath(t *testing.T) {
 	s := &Server{
 		deps: Dependencies{
 			Config: config.Config{
@@ -74,6 +74,37 @@ func TestWaitURLWithRootPublicPath(t *testing.T) {
 	r.Host = ""
 
 	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "", "", "/wait", "pdf.example.com", "/")
+}
+
+func TestForwardAuthAllowsUnknownHostByDefault(t *testing.T) {
+	s, _ := newTestServerWithHealthURL(t, "http://127.0.0.1:1/health")
+	handler := s.Routes()
+
+	req := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
+	req.Header.Set("X-Forwarded-Host", "unknown.example.com")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusNoContent, rec.Body.String())
+	}
+}
+
+func TestForwardAuthFailClosedRejectsUnknownHost(t *testing.T) {
+	s, _ := newTestServerWithHealthURL(t, "http://127.0.0.1:1/health")
+	s.deps.Config.Server.FailClosedUnknownHosts = true
+	handler := s.Routes()
+
+	req := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
+	req.Header.Set("X-Forwarded-Host", "unknown.example.com")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusNotFound, rec.Body.String())
+	}
 }
 
 func TestRoutesMountLeaseAPIAtRootPublicPath(t *testing.T) {
@@ -278,6 +309,55 @@ func TestLeaseRejectsWrongReferer(t *testing.T) {
 	}
 }
 
+func TestLeaseAcceptsJSONBody(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "pdf.example.com", "/")
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com&token="+url.QueryEscape(token), strings.NewReader(`{"lease":"30m"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d; body=%q", rec.Code, http.StatusOK, rec.Body.String())
+	}
+}
+
+func TestLeaseRejectsMalformedJSONBody(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "pdf.example.com", "/")
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com&token="+url.QueryEscape(token), strings.NewReader(`{"lease":`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestLeaseRejectsOversizedJSONBody(t *testing.T) {
+	s, _ := newTestServer(t, http.StatusServiceUnavailable)
+	handler := s.Routes()
+	token := waitToken(t, s, "pdf.example.com", "/")
+	body := `{"lease":"` + strings.Repeat("x", leaseJSONBodyLimit) + `"}`
+
+	req := httptest.NewRequest("POST", "/_reveille/wait?host=pdf.example.com&token="+url.QueryEscape(token), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
 func TestWaitTokenExpires(t *testing.T) {
 	now := time.Date(2026, time.June, 17, 12, 0, 0, 0, time.UTC)
 	s := New(Dependencies{
@@ -458,7 +538,7 @@ func TestStatusReportsWaitingForTimerWhileAppStarts(t *testing.T) {
 }
 
 func TestStatusReportsUnreachableHealthEndpoint(t *testing.T) {
-	s, lease := newTestServerWithHealthURL(t, "://bad-health-url")
+	s, lease := newTestServerWithHealthURL(t, "http://127.0.0.1:1/health")
 	host, ok := s.deps.Hosts.Lookup("pdf.example.com")
 	if !ok {
 		t.Fatal("host not loaded")
