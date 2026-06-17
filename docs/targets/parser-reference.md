@@ -52,6 +52,10 @@ Stack-only field:
 - Stack entries must provide `healthUrl`.
 - Stack entries may omit `name`; the YAML key is used instead.
 - Every entry must provide `hostname`.
+- When set, `healthUrl` must be an absolute `http://` or `https://` URL with a
+  host.
+- `healthUrl` must not include embedded credentials.
+- URL fragments are ignored.
 
 ## Example
 

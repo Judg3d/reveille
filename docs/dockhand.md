@@ -140,6 +140,11 @@ Stacks must define `healthUrl` because a stack can contain multiple containers.
 Reveille does not use Dockhand stack readiness. It uses `healthUrl` for
 readiness and Dockhand for stack start/stop.
 
+`healthUrl` must be an absolute `http://` or `https://` URL with a host.
+Embedded credentials are rejected. Internal network addresses are allowed for
+health checks because Reveille usually reaches targets over Docker, LAN, or VPN
+paths.
+
 ## Dockhand Calls
 
 Reveille currently uses these Dockhand routes:

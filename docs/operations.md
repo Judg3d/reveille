@@ -157,13 +157,14 @@ Interpret the result:
 
 | Response | Meaning |
 | --- | --- |
-| `204 No Content` | Target is ready, or the host is not managed by Reveille |
+| `204 No Content` | Target is ready, or the host is not managed by Reveille while pass-through is enabled |
 | `302 Found` | Reveille started the target and redirected to the wait UI |
+| `404` | Host is not managed by Reveille while `server.failClosedUnknownHosts` is true |
 | `500` | Readiness check failed unexpectedly |
 | `503` | Dockhand start failed |
 
 Use a hostname that exists in your Reveille host files. Unknown hosts pass
-through with `204 No Content`.
+through with `204 No Content` unless `server.failClosedUnknownHosts` is true.
 
 ## Check The Browser Wait Route
 

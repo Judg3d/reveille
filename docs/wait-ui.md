@@ -64,6 +64,9 @@ The compatibility lease API also accepts JSON:
 {"lease":"2h"}
 ```
 
+JSON lease bodies are limited to 1 MiB. Empty, malformed, or oversized JSON is
+rejected.
+
 The lease value must match one of the configured option labels. Matching is
 case-insensitive, and `never` is accepted for the `Never` option. If the request
 does not include a lease value, Reveille uses the target's default lease.

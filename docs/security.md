@@ -133,13 +133,16 @@ Reveille uses forwarded headers from Traefik:
 
 | Header | Use |
 | --- | --- |
-| `X-Forwarded-Host` | target lookup during `forwardAuth`; public wait URL host |
-| `X-Forwarded-Proto` | public wait URL scheme |
+| `X-Forwarded-Host` | target lookup during `forwardAuth` |
+| `X-Forwarded-Proto` | expected origin for mutating wait-control requests |
 | `X-Forwarded-Uri` | default return path after readiness |
 | `routing.returnToHeader` | optional host-level replacement for return path |
 
 Reveille sanitizes `returnTo` so redirects stay on local paths. Empty, absolute,
 protocol-relative, invalid, or non-`/` paths become `/`.
+
+Wait redirects use a relative `Location` path instead of rebuilding an absolute
+URL from forwarded host and proto headers.
 
 Reveille also signs each wait redirect with a 24-hour token. The token is
 bound to the managed host and sanitized return path, and wait/status/lease/stop
@@ -162,6 +165,10 @@ During `forwardAuth`, Reveille looks up the target by `X-Forwarded-Host`.
 If the host is unknown, Reveille returns `204 No Content` and lets the request
 pass. This avoids breaking unrelated Traefik routes, but it also means hostname
 typos bypass Reveille instead of failing closed.
+
+Set `server.failClosedUnknownHosts: true` when every router using the Reveille
+forward-auth middleware is expected to have a matching target. In that mode,
+unknown forward-auth hosts return `404 Not Found` and Reveille logs a warning.
 
 Check that every app router using `reveille@file` has a matching target
 `hostname` in the Reveille host files.
@@ -226,6 +233,7 @@ errors.
 | Reveille UI route does not use `reveille@file` | prevents wait-route recursion or blocking |
 | App routers use `reveille@file` only where intended | controls which apps Reveille manages |
 | Target `hostname` values match public app hosts | avoids accidental pass-through |
+| Target `healthUrl` values use `http://` or `https://` and no embedded credentials | avoids surprising outbound request behavior |
 | Forwarded headers come from Traefik | keeps host matching and redirects correct |
 | Dockhand and health URLs use internal network paths | avoids unnecessary public exposure |
 

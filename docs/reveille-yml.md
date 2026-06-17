@@ -27,6 +27,7 @@ Example:
 server:
   listen: ":8080"
   publicPath: "/_reveille"
+  failClosedUnknownHosts: false
 
 log:
   level: "info"
@@ -55,10 +56,13 @@ defaults:
 server:
   listen: ":8080"
   publicPath: "/_reveille"
+  failClosedUnknownHosts: false
 ```
 
 - `server.listen`: address Reveille listens on
 - `server.publicPath`: public path prefix used for the wait UI and Reveille API
+- `server.failClosedUnknownHosts`: return `404 Not Found` for unknown
+  `forwardAuth` hosts instead of allowing pass-through with `204 No Content`
 
 ## Log
 

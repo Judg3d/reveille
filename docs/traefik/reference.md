@@ -148,7 +148,7 @@ paths separately.
 
 ## Forwarded Headers
 
-Reveille uses forwarded headers to build the public wait URL and preserve the
+Reveille uses forwarded headers to find the managed host and preserve the
 original destination:
 
 - `X-Forwarded-Host`
@@ -156,8 +156,8 @@ original destination:
 - `X-Forwarded-Uri`
 - optional host-level `routing.returnToHeader`
 
-If redirects point at `http://reveille:8080/...`, Traefik is not passing the
-public forwarded host/proto that Reveille needs.
+Wait redirects use a relative `Location` path, so Reveille does not rebuild the
+public wait URL from forwarded host and proto headers.
 
 ## Troubleshooting
 

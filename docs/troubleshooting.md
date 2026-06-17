@@ -141,15 +141,13 @@ Related docs:
 
 Likely causes:
 
-- Traefik is not forwarding `X-Forwarded-Host`
-- Traefik is not forwarding `X-Forwarded-Proto`
 - `forwardAuth.trustForwardHeader` is not configured as expected
 - the app router hostname does not match the Reveille target `hostname`
 - host-level `routing.returnToHeader` points at the wrong header
 
-Reveille builds the public wait URL from forwarded host and proto headers. It
-uses `routing.returnToHeader`, or `X-Forwarded-Uri` by default, to preserve the
-original path.
+Reveille now returns a relative wait-page redirect. It still uses
+`routing.returnToHeader`, or `X-Forwarded-Uri` by default, to preserve the
+original path as `returnTo`.
 
 Check the forward-auth call:
 
@@ -161,8 +159,8 @@ docker exec traefik wget -S -O- \
   http://reveille:8080/api/traefik/forward-auth
 ```
 
-If redirects point at `http://reveille:8080/...`, Traefik is not passing the
-public forwarded host/proto that Reveille needs.
+If redirects point at `http://reveille:8080/...`, the running container is using
+an older Reveille build.
 
 Related docs:
 
@@ -180,7 +178,9 @@ Likely causes:
 
 Unknown hosts pass through with `204 No Content`. This keeps Reveille from
 blocking unrelated Traefik routes, but it also means hostname mismatches look
-like bypasses.
+like bypasses. If every app router using `reveille@file` should be managed by
+Reveille, set `server.failClosedUnknownHosts: true`; unknown hosts will return
+`404 Not Found` and log a warning.
 
 Check the app router middleware list, then run:
 

@@ -51,6 +51,11 @@ non-matching status is unhealthy. A request or connection error is unreachable.
 `healthUrl` replaces Dockhand readiness for the ready/not-ready decision only.
 Dockhand is still used to start and stop the target.
 
+Configured health URLs must be absolute `http://` or `https://` URLs with a
+host. Embedded credentials are rejected, and URL fragments are ignored. Private,
+LAN, Docker, and Tailscale addresses are allowed because health checks commonly
+use internal network paths.
+
 Stack targets must define `healthUrl` because a stack can contain multiple
 containers.
 
@@ -88,6 +93,8 @@ request to the target app:
 
 If the forwarded host is unknown, Reveille returns `204 No Content` and lets the
 request pass. This keeps Reveille from blocking unrelated Traefik routes.
+Set `server.failClosedUnknownHosts: true` to return `404 Not Found` for unknown
+forward-auth hosts instead.
 
 If the start call fails, Reveille returns a service error instead of redirecting
 to the wait UI.

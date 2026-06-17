@@ -39,7 +39,9 @@ this order:
 For Traefik `forwardAuth`, Reveille uses `X-Forwarded-Host`.
 
 Unknown wait/control hosts return `404 Not Found`. Unknown `forwardAuth` hosts
-return `204 No Content` so unrelated Traefik routes can pass through.
+return `204 No Content` by default so unrelated Traefik routes can pass
+through. Set `server.failClosedUnknownHosts: true` to make unknown
+`forwardAuth` hosts return `404 Not Found`.
 
 ## `GET /healthz`
 
@@ -72,7 +74,7 @@ Required forwarded headers:
 | Header | Purpose |
 | --- | --- |
 | `X-Forwarded-Host` | managed host lookup |
-| `X-Forwarded-Proto` | public wait URL scheme |
+| `X-Forwarded-Proto` | expected origin for mutating wait-control requests |
 | `X-Forwarded-Uri` | default return path |
 
 Example:
@@ -89,16 +91,20 @@ Responses:
 
 | Status | Meaning |
 | --- | --- |
-| `204 No Content` | Host is unknown, or target is already healthy |
+| `204 No Content` | Target is already healthy, or host is unknown while `server.failClosedUnknownHosts` is false |
 | `302 Found` | Target was started and browser should go to wait UI |
+| `404 Not Found` | Host is unknown while `server.failClosedUnknownHosts` is true |
 | `500 Internal Server Error` | Readiness check failed unexpectedly |
 | `503 Service Unavailable` | Dockhand start failed |
 
 When Reveille redirects, the `Location` header points to:
 
 ```text
-https://app.example.com/_reveille/wait?host=app.example.com&returnTo=/docs&token=<wait-token>
+/_reveille/wait?host=app.example.com&returnTo=/docs&token=<wait-token>
 ```
+
+The wait redirect is relative, so the browser stays on the same public app
+origin that made the original request.
 
 The wait token is signed by Reveille, expires after 24 hours, and is bound to
 the managed host and sanitized return path. Wait, status, lease, and stop routes
@@ -309,6 +315,9 @@ X-Reveille-Token: <wait-token>
 
 {"lease":"2h"}
 ```
+
+JSON lease request bodies are limited to 1 MiB. Empty, malformed, or oversized
+JSON returns `400 Bad Request`.
 
 Response shape and status codes match the lease branch of:
 
