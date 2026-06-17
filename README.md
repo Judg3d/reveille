@@ -1,89 +1,69 @@
 # Reveille
 
-On-demand container lifecycle manager for homelab services behind Traefik.
+Reveille is an on-demand lifecycle manager for homelab services behind Traefik.
+It wakes stopped Dockhand-managed containers or stacks when someone visits their
+public domain, shows a timer selection page while the app starts, and lets
+Traefik resume normal routing once the app is healthy.
 
-Reveille is designed to run as a Traefik `forwardAuth` middleware. When a user
-requests a managed host whose container is stopped, Reveille starts it through
-the Dockhand API, presents a wait page with lease selection, and lets Traefik
-resume normal routing once the target is healthy.
-
-```
-User -> Traefik router -> Reveille forwardAuth -> Dockhand API -> Target container
-                         \-> Reveille wait UI
+```text
+Browser -> Traefik app router -> Reveille forwardAuth -> Dockhand -> Target
+                              \-> /_reveille/wait
 ```
 
-## Goals
+## What It Does
 
-- Wake stopped containers when users request configured Traefik hosts
-- Use Traefik middleware instead of replacing Traefik as the reverse proxy
-- Use Dockhand's API for container and stack lifecycle operations
-- Serve a minimal wait page with lease selection while the target service starts
-- Forward users to the target service once health checks pass
-- Stop the target container or stack when the selected lease expires
-- Support hot-reloadable host config without restarting Reveille
+- Integrates with Traefik through `forwardAuth`.
+- Starts and stops targets through the Dockhand API.
+- Shows a browser wait page with lease/timer selection.
+- Polls readiness before redirecting back to the requested app.
+- Stops finite leases automatically when their timer expires.
+- Loads target definitions from YAML files.
 
-## Configuration Direction
+## Minimal Compose
 
-Reveille follows Traefik's static plus dynamic config pattern:
+```yaml
+services:
+  reveille:
+    image: your-registry/reveille:latest
+    container_name: reveille
+    restart: unless-stopped
+    environment:
+      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:-}
+    command:
+      - -config
+      - /etc/reveille/reveille.yml
+      - -hosts
+      - /etc/reveille/hosts
+    volumes:
+      - ./reveille.yml:/etc/reveille/reveille.yml:ro
+      - ./targets:/etc/reveille/hosts:ro
+    networks:
+      - <traefik-shared-network>
 
-- `reveille.yml` contains Reveille's own settings, including Dockhand connection,
-  default leases, poll interval, and listen address.
-- `hosts/` contains one file per managed host and is watched for live changes.
+networks:
+  <traefik-shared-network>:
+    external: true
+```
 
-## Stack
+Create local config from the example:
 
-- Go: Reveille service, Dockhand client, config loading, lease scheduler,
-  health checks, templates, and embedded static assets
-- Traefik: reverse proxy, host rules, and middleware execution
-- Dockhand: Docker container and compose stack lifecycle API
-- HTML/CSS/vanilla JavaScript: wait page UI served by the Go binary
+```sh
+cp reveille.example.yml reveille.yml
+cp .env.example .env
+```
 
-Go should be enough for the application server. The wait page can use embedded
-templates and a small amount of vanilla JavaScript for 5-second status polling,
-so Reveille should not need a Node, React, or Vite frontend build unless the UI
-requirements grow substantially.
-
-## Documentation
-
-Traefik wiring is documented in
-[docs/traefik-wiring.md](docs/traefik-wiring.md).
-Host file authoring is documented in
-[docs/host-file/get-started.md](docs/host-file/get-started.md), and runtime
-config is documented in [docs/reveille-yml.md](docs/reveille-yml.md).
-
-## Build And Run
+## Run Locally
 
 ```sh
 go test ./...
-go run ./cmd/reveille -config reveille.yml -hosts hosts
+go run ./cmd/reveille -config reveille.yml -hosts targets
 ```
 
-If `reveille.yml` is missing, Reveille starts with documented defaults. If the
-`hosts/` directory is missing, no hosts are managed and the forward-auth
-endpoint returns `204 No Content`.
+## Documentation
 
-## Compose
-
-Production-style Compose pulls the image from the configured container
-registry:
-
-```sh
-docker compose -f compose.yml up -d
-```
-
-Local testing builds the image from this checkout:
-
-```sh
-docker compose -f compose.dev.yml up --build
-```
-
-Compose automatically reads a local `.env` file for variable substitution.
-Reveille does not require a committed `.env`; use one only for local secrets and
-deployment-specific values. Start from `.env.example` if you want local
-overrides. The default image is
-`ghcr.io/your-org/reveille:${REVEILLE_TAG:-latest}`.
-
-Dockhand auth is optional. Reveille sends a bearer token only when
-`DOCKHAND_API_TOKEN` or `dockhand.apiToken` is set. Leave it blank when
-Dockhand authentication is disabled; set it only if your Dockhand instance
-requires API auth.
+- Traefik quick start: [docs/traefik/get-started.md](docs/traefik/get-started.md)
+- Traefik reference: [docs/traefik/reference.md](docs/traefik/reference.md)
+- Target quick start: [docs/targets/get-started.md](docs/targets/get-started.md)
+- Target parser reference: [docs/targets/parser-reference.md](docs/targets/parser-reference.md)
+- Runtime config reference: [docs/reveille-yml.md](docs/reveille-yml.md)
+- Changelog: [changelog.md](changelog.md)

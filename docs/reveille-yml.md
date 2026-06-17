@@ -3,10 +3,21 @@
 `reveille.yml` is Reveille's runtime configuration file. It controls the HTTP
 server, Dockhand connection defaults, and lease behavior.
 
-Use [host-file/get-started.md](host-file/get-started.md) for per-host target
+Use [targets/get-started.md](targets/get-started.md) for per-host target
 files. Use this page for the main service-level config.
 
-## Canonical Filename
+## Files
+
+Use `reveille.example.yml` as the committed, documented template. Copy it to
+`reveille.yml` for local development or deployment:
+
+```sh
+cp reveille.example.yml reveille.yml
+```
+
+`reveille.yml` is local runtime config and is intentionally ignored by Git.
+
+## Canonical Runtime Filename
 
 Use `reveille.yml` as the primary runtime config filename.
 

@@ -1,0 +1,66 @@
+# Reveille runtime configuration example.
+#
+# Copy this file to `reveille.yml` and edit it for your deployment:
+#
+#   cp reveille.example.yml reveille.yml
+#
+# `reveille.yml` is local runtime config and should not be committed.
+
+server:
+  # Address the Reveille HTTP server listens on inside the container.
+  # Compose and Traefik normally send traffic to container port 8080.
+  listen: ":8080"
+
+  # Public path prefix used for the wait UI and browser control endpoints.
+  # Traefik must route this prefix back to the Reveille container.
+  publicPath: "/_reveille"
+
+log:
+  # Supported levels: debug, info, warn, warning, error.
+  # Use debug while wiring routes and health checks; use info for normal use.
+  level: "info"
+
+dockhand:
+  # Internal URL Reveille uses to call Dockhand.
+  baseUrl: "http://dockhand:3000"
+
+  # Optional bearer token. Prefer DOCKHAND_API_TOKEN from the environment or a
+  # deployment secret instead of putting secrets in this file.
+  # apiToken: "${DOCKHAND_API_TOKEN}"
+
+  # Default Dockhand environment used when a target entry does not override
+  # target.<name>.environment.
+  environmentId: 1
+
+  # HTTP timeout for Dockhand API calls.
+  timeout: "30s"
+
+defaults:
+  # Default lease selected on the wait page.
+  #
+  # Lease durations use Go duration syntax:
+  # - "30m" means 30 minutes
+  # - "2h" means 2 hours
+  # - "1h30m" means 1 hour and 30 minutes
+  #
+  # Use "never" to leave the target running until manually stopped or replaced
+  # by a finite lease.
+  lease: "2h"
+
+  # Lease choices shown to users on the wait page. Add, remove, or reorder these
+  # values freely. Each value must be a valid Go duration or "never".
+  leaseOptions:
+    - "30m"
+    - "1h"
+    - "2h"
+    - "4h"
+    - "never"
+
+  # Maximum time allowed for a start operation.
+  startTimeout: "3m"
+
+  # Timeout used when stopping a target.
+  stopGrace: "30s"
+
+  # How often the wait page polls readiness while a timer is active.
+  pollInterval: "5s"
