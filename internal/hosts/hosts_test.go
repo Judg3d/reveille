@@ -3,6 +3,7 @@ package hosts
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"reveille/internal/config"
@@ -166,6 +167,74 @@ target:
 	}
 	if hosts[0].Target.Name != "convertx-prod" {
 		t.Fatalf("target = %+v", hosts[0].Target)
+	}
+}
+
+func TestLoadFileRejectsUnsupportedHealthURLScheme(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yml")
+	if err := os.WriteFile(path, []byte(`
+target:
+  app:
+    type: stack
+    hostname: app.example.com
+    healthUrl: file:///etc/passwd
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFile(path, config.DefaultConfig().Defaults); err == nil || !strings.Contains(err.Error(), "scheme must be http or https") {
+		t.Fatalf("LoadFile() err = %v, want scheme validation error", err)
+	}
+}
+
+func TestLoadFileRejectsHealthURLWithoutHost(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yml")
+	if err := os.WriteFile(path, []byte(`
+target:
+  app:
+    type: stack
+    hostname: app.example.com
+    healthUrl: http:///health
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFile(path, config.DefaultConfig().Defaults); err == nil || !strings.Contains(err.Error(), "host is required") {
+		t.Fatalf("LoadFile() err = %v, want host validation error", err)
+	}
+}
+
+func TestLoadFileRejectsHealthURLCredentials(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yml")
+	if err := os.WriteFile(path, []byte(`
+target:
+  app:
+    type: stack
+    hostname: app.example.com
+    healthUrl: https://user:pass@app.example.com/health
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFile(path, config.DefaultConfig().Defaults); err == nil || !strings.Contains(err.Error(), "credentials are not allowed") {
+		t.Fatalf("LoadFile() err = %v, want credentials validation error", err)
+	}
+}
+
+func TestLoadFileTrimsHealthURL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yml")
+	if err := os.WriteFile(path, []byte(`
+target:
+  app:
+    type: stack
+    hostname: app.example.com
+    healthUrl: " https://app.example.com/health#local "
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hosts, err := LoadFile(path, config.DefaultConfig().Defaults)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hosts[0].Target.HealthURL; got != "https://app.example.com/health" {
+		t.Fatalf("healthUrl = %q, want normalized URL", got)
 	}
 }
 

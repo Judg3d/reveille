@@ -3,6 +3,7 @@ package hosts
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/yaml.v3"
 	"reveille/internal/config"
 	"reveille/internal/logging"
-	"gopkg.in/yaml.v3"
 )
 
 type Host struct {
@@ -296,5 +297,34 @@ func validateHost(path string, index int, h Host) (Host, error) {
 	if h.Target.Type == "stack" && h.Target.HealthURL == "" {
 		return h, fmt.Errorf("%s target.healthUrl is required for stack targets", label)
 	}
+	if h.Target.HealthURL != "" {
+		healthURL, err := validateHealthURL(h.Target.HealthURL)
+		if err != nil {
+			return h, fmt.Errorf("%s target.healthUrl: %w", label, err)
+		}
+		h.Target.HealthURL = healthURL
+	}
 	return h, nil
+}
+
+func validateHealthURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("scheme must be http or https")
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("host is required")
+	}
+	if u.User != nil {
+		return "", fmt.Errorf("credentials are not allowed")
+	}
+	u.Fragment = ""
+	return u.String(), nil
 }
