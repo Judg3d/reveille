@@ -48,3 +48,20 @@ func TestNeverLeaseDoesNotScheduleStop(t *testing.T) {
 	case <-time.After(25 * time.Millisecond):
 	}
 }
+
+func TestCloseStopsTimers(t *testing.T) {
+	called := make(chan struct{}, 1)
+	m := NewManager(func(context.Context, hosts.Host) error {
+		called <- struct{}{}
+		return nil
+	})
+	host := hosts.Host{Host: "app.example.com"}
+	m.Set(host, config.LeaseDuration{Label: "10ms", Duration: 10 * time.Millisecond}, time.Now())
+	m.Close()
+
+	select {
+	case <-called:
+		t.Fatal("stop was called after manager close")
+	case <-time.After(25 * time.Millisecond):
+	}
+}

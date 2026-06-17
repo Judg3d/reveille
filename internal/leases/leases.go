@@ -23,7 +23,6 @@ type Manager struct {
 	leases  map[string]Lease
 	timers  map[string]*time.Timer
 	stop    StopFunc
-	closed  bool
 	stopTTL time.Duration
 	logger  *logging.Logger
 }
@@ -92,7 +91,6 @@ func (m *Manager) Close() {
 	for _, timer := range m.timers {
 		timer.Stop()
 	}
-	m.closed = true
 }
 
 func firstLogger(loggers []*logging.Logger) *logging.Logger {
