@@ -25,6 +25,7 @@
 
         <form id="lease-form" class="lease" method="post" action="{{.PublicPath}}/wait?host={{.Host}}">
           <input type="hidden" name="action" value="lease">
+          <input type="hidden" name="token" value="{{.Token}}">
           <fieldset>
             <legend>Timer</legend>
             <div class="lease-options">
@@ -65,6 +66,7 @@
 
         <form class="stop-form" method="post" action="{{.PublicPath}}/wait?host={{.Host}}">
           <input type="hidden" name="action" value="stop">
+          <input type="hidden" name="token" value="{{.Token}}">
           <button class="secondary" type="submit">Stop App</button>
         </form>
       </div>

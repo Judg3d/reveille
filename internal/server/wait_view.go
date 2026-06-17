@@ -18,13 +18,14 @@ type waitView struct {
 	Host         string
 	PublicPath   string
 	ReturnTo     string
+	Token        string
 	ConfigJSON   template.JS
 	AssetVersion string
 	LeaseDefault string
 	LeaseOptions []config.LeaseDuration
 }
 
-const waitAssetVersion = "20260616-2"
+const waitAssetVersion = "20260617-2"
 
 func parseTemplates() *template.Template {
 	return template.Must(template.ParseFS(assets, "templates/*.html"))
@@ -48,18 +49,15 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	host, ok := s.hostFromRequest(r)
+	host, token, ok := s.authorizedHost(w, r)
 	if !ok {
-		http.NotFound(w, r)
 		return
 	}
-	returnTo := sanitizeReturnTo(r.URL.Query().Get("returnTo"))
-	if returnTo == "" {
-		returnTo = "/"
-	}
+	returnTo := token.ReturnTo
 	clientCfg := map[string]any{
 		"host":       host.Host,
 		"returnTo":   returnTo,
+		"token":      requestToken(r),
 		"publicPath": publicPath(s.deps.Config.Server.PublicPath),
 		"waitPath":   publicPath(s.deps.Config.Server.PublicPath) + "/wait",
 		"pollMillis": int(s.deps.Config.Defaults.PollInterval / time.Millisecond),
@@ -73,6 +71,7 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 		Host:         host.Host,
 		PublicPath:   publicPath(s.deps.Config.Server.PublicPath),
 		ReturnTo:     returnTo,
+		Token:        requestToken(r),
 		ConfigJSON:   template.JS(cfgJSON),
 		AssetVersion: waitAssetVersion,
 		LeaseDefault: host.Lease.Default.Label,

@@ -20,11 +20,13 @@ type Dependencies struct {
 	Leases     *leases.Manager
 	Logger     *logging.Logger
 	StartClock func() time.Time
+	TokenKey   []byte
 }
 
 type Server struct {
-	deps Dependencies
-	tpl  *template.Template
+	deps     Dependencies
+	tpl      *template.Template
+	tokenKey []byte
 }
 
 func New(deps Dependencies) *Server {
@@ -35,7 +37,8 @@ func New(deps Dependencies) *Server {
 		deps.StartClock = time.Now
 	}
 	return &Server{
-		deps: deps,
-		tpl:  parseTemplates(),
+		deps:     deps,
+		tpl:      parseTemplates(),
+		tokenKey: tokenKey(deps.TokenKey),
 	}
 }

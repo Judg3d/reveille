@@ -23,14 +23,13 @@ type statusResponse struct {
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
-	host, ok := s.hostFromRequest(r)
+	host, token, ok := s.authorizedHost(w, r)
 	if !ok {
-		http.NotFound(w, r)
 		return
 	}
 	resp := statusResponse{
 		Host:     host.Host,
-		ReturnTo: sanitizeReturnTo(r.URL.Query().Get("returnTo")),
+		ReturnTo: token.ReturnTo,
 	}
 	if host.Target.HealthURL != "" {
 		check := s.deps.Health.Check(r.Context(), host.Target)

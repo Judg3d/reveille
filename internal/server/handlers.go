@@ -55,9 +55,11 @@ func (s *Server) lease(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	host, ok := s.hostFromRequest(r)
+	host, _, ok := s.authorizedHost(w, r)
 	if !ok {
-		http.NotFound(w, r)
+		return
+	}
+	if !s.validateRequestOrigin(w, r, host) {
 		return
 	}
 	value := r.FormValue("lease")
@@ -98,9 +100,11 @@ func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	host, ok := s.hostFromRequest(r)
+	host, _, ok := s.authorizedHost(w, r)
 	if !ok {
-		http.NotFound(w, r)
+		return
+	}
+	if !s.validateRequestOrigin(w, r, host) {
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), s.deps.Config.Defaults.StopGrace)
