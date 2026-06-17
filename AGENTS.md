@@ -55,12 +55,6 @@ Validate Compose:
 docker compose -f compose.yml config
 ```
 
-Rebuild and recreate the running service:
-
-```sh
-docker compose -f compose.yml up -d --build --force-recreate
-```
-
 Inspect logs:
 
 ```sh
@@ -107,13 +101,9 @@ docker exec traefik wget -S -O- --no-check-certificate --header 'Host: app.examp
 ## Documentation Procedure
 
 Update docs when behavior, configuration, routing, or operations change.
-
-- Traefik quick start: `docs/traefik/get-started.md`
-- Traefik reference: `docs/traefik/reference.md`
-- Target quick start: `docs/targets/get-started.md`
-- Target parser reference: `docs/targets/parser-reference.md`
-- Runtime config reference: `docs/reveille-yml.md`
-- Compatibility link page: `docs/traefik-wiring.md`
+All user-facing documentation lives under `docs/`.
+Base documentation on evidence from the codebase so it accurately informs
+users.
 
 Update `changelog.md` for user-visible changes.
 
