@@ -2,6 +2,29 @@
 
 ## 2026-06-16
 
+- Rebuilt the wait UI with a clearer timer-selection screen, responsive run
+  window controls, readiness/counter state, improved status messages, and
+  dark-mode styling.
+- Changed the wait flow so the page stays on timer selection until the current
+  browser session starts a timer, then switches to countdown mode while polling
+  readiness and redirecting only after the target is healthy.
+- Moved browser control calls onto `/_reveille/wait` so the wait page can render,
+  create leases, stop apps, and poll status through the same Traefik-routed
+  prefix instead of depending on separate `/_reveille/api/*` browser routing.
+- Added static asset cache busting for the wait page and fixed embedded client
+  config so it renders as a JSON object rather than an escaped JSON string.
+- Added Traefik Docker labels for the Reveille UI route in `compose.yml` and
+  made label-based routing the source of truth for `/_reveille/*`.
+- Split the server package into smaller files for construction, routes,
+  handlers, status responses, wait-page rendering, and HTTP helpers, leaving
+  `server.go` as the glue layer.
+- Added an `internal/readiness` package for readiness state/message policy, with
+  focused tests outside the HTTP handler layer.
+- Split Traefik documentation into `docs/traefik/get-started.md` and
+  `docs/traefik/reference.md`, leaving `docs/traefik-wiring.md` as a short
+  compatibility landing page.
+- Added a documented `reveille.example.yml` template and made `reveille.yml`
+  local untracked runtime config.
 - Added a configurable `log.level` setting in `reveille.yml` with leveled
   runtime logging (`debug`, `info`, `warn`, `error`) across startup, host
   reloads, lease lifecycle, and wait-page/server flows.
