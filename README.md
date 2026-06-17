@@ -61,9 +61,5 @@ go run ./cmd/reveille -config reveille.yml -hosts targets
 
 ## Documentation
 
-- Traefik quick start: [docs/traefik/get-started.md](docs/traefik/get-started.md)
-- Traefik reference: [docs/traefik/reference.md](docs/traefik/reference.md)
-- Target quick start: [docs/targets/get-started.md](docs/targets/get-started.md)
-- Target parser reference: [docs/targets/parser-reference.md](docs/targets/parser-reference.md)
-- Runtime config reference: [docs/reveille-yml.md](docs/reveille-yml.md)
-- Changelog: [changelog.md](changelog.md)
+See [docs/](docs/) for setup guides, runtime behavior, configuration
+reference, and troubleshooting notes.
