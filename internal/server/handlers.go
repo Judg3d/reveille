@@ -3,12 +3,16 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"reveille/internal/hosts"
 )
+
+const leaseJSONBodyLimit = 1 << 20
 
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
@@ -19,6 +23,11 @@ func (s *Server) forwardAuth(w http.ResponseWriter, r *http.Request) {
 	hostName := r.Header.Get("X-Forwarded-Host")
 	host, ok := s.deps.Hosts.Lookup(hostName)
 	if !ok {
+		if s.deps.Config.Server.FailClosedUnknownHosts {
+			s.deps.Logger.Warnf("forward-auth rejected unknown host %q", hostName)
+			http.NotFound(w, r)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -67,7 +76,16 @@ func (s *Server) lease(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Lease string `json:"lease"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&body)
+		limited := http.MaxBytesReader(w, r.Body, leaseJSONBodyLimit)
+		defer limited.Close()
+		if err := json.NewDecoder(limited).Decode(&body); err != nil {
+			if errors.Is(err, io.EOF) {
+				http.Error(w, "empty JSON body", http.StatusBadRequest)
+				return
+			}
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
 		value = body.Lease
 	}
 	lease := host.Lease.Default

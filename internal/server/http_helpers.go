@@ -29,13 +29,7 @@ func (s *Server) waitURL(r *http.Request, host, returnTo string) string {
 	} else {
 		s.deps.Logger.Errorf("sign wait token for %s: %v", host, err)
 	}
-	path := public + "/wait?" + q.Encode()
-
-	base := publicBaseURL(r)
-	if base == "" {
-		return path
-	}
-	return base + path
+	return public + "/wait?" + q.Encode()
 }
 
 func publicPath(raw string) string {
