@@ -76,6 +76,8 @@ priority: 100000
 services:
   reveille:
     image: your-registry/reveille:latest
+    expose:
+      - "8080"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=<traefik-shared-network>"
@@ -116,6 +118,9 @@ http:
 Use either Docker labels or a file-provider route for `reveille-ui`, not both,
 unless you intentionally want duplicate provider-specific routers for
 debugging.
+
+When using Traefik, prefer Docker `expose` instead of host-level `ports`.
+Reveille only needs to be reachable by Traefik on the shared Docker network.
 
 ## Wait UI Control Channel
 

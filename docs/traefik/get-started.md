@@ -46,6 +46,8 @@ If Reveille runs in Docker with Traefik, add labels to the Reveille service:
 services:
   reveille:
     image: your-registry/reveille:latest
+    expose:
+      - "8080"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=<traefik-shared-network>"
@@ -72,6 +74,9 @@ Replace the placeholders:
 - `<cert-resolver>`: ACME resolver, for example `cloudflare` or `letsencrypt`
 - `<https-header-middleware>`: optional forwarded-header middleware; remove the
   middleware label if you do not use one
+
+Do not add a host-level `ports:` mapping for the Traefik path. Reveille only
+needs to be reachable by Traefik on the shared Docker network.
 
 Do not attach `reveille@file` to the `reveille-ui` router.
 

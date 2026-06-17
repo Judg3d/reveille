@@ -34,6 +34,8 @@ services:
       - /etc/reveille/reveille.yml
       - -hosts
       - /etc/reveille/hosts
+    expose:
+      - "8080"
     volumes:
       - ./reveille.yml:/etc/reveille/reveille.yml:ro
       - ./targets:/etc/reveille/hosts:ro
@@ -44,6 +46,10 @@ networks:
   <traefik-shared-network>:
     external: true
 ```
+
+For deployments that do not route Reveille through Traefik, uncomment the
+`ports:` example in the Compose file and set `REVEILLE_BIND_HOST` to a narrow
+host address such as `127.0.0.1` or a specific LAN/VPN IP.
 
 Create local config from the example:
 

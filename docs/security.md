@@ -169,15 +169,28 @@ Recommended network shape:
 - Reveille can reach any configured target `healthUrl`
 - browsers reach Reveille only through the app host's `/_reveille/*` route
 
-The example Compose file publishes Reveille's port for convenience:
+The example Compose file exposes Reveille only to other containers on the
+shared Docker network:
+
+```yaml
+expose:
+  - "8080"
+```
+
+Avoid publishing Reveille with a host-level `ports:` mapping unless Reveille is
+not being routed through Traefik or you are intentionally debugging from the
+Docker host. If you need direct host access, bind to a narrow host address
+instead of all interfaces:
 
 ```yaml
 ports:
-  - "${REVEILLE_PORT:-8080}:8080"
+  - "${REVEILLE_BIND_HOST:-127.0.0.1}:${REVEILLE_PORT:-8080}:8080"
 ```
 
-In deployments where only Traefik needs direct access to Reveille, you can keep
-Reveille on the shared Docker network and avoid broad host-level exposure.
+`REVEILLE_BIND_HOST` is a Docker bind address, not an application-level
+allowlist. Use `127.0.0.1` for local-only access, a specific LAN or VPN address
+for restricted remote access, and avoid `0.0.0.0` unless broad host exposure is
+intentional.
 
 ## Logging
 
