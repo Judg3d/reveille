@@ -27,6 +27,34 @@
   let countdownTimer = null;
   let waitingForLease = true;
 
+  function timerStartedKey() {
+    return `reveille:${cfg.host || "unknown"}:timer-started`;
+  }
+
+  function browserStartedTimer() {
+    try {
+      return window.sessionStorage.getItem(timerStartedKey()) === "true";
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function rememberTimerStarted() {
+    try {
+      window.sessionStorage.setItem(timerStartedKey(), "true");
+    } catch (_) {
+      // Session storage is a convenience; the backend lease remains the source of truth.
+    }
+  }
+
+  function forgetTimerStarted() {
+    try {
+      window.sessionStorage.removeItem(timerStartedKey());
+    } catch (_) {
+      // Ignore storage failures.
+    }
+  }
+
   function publicURL(path) {
     return `${cfg.publicPath || ""}${path}`;
   }
@@ -129,6 +157,7 @@
       if (remaining <= 0) {
         countdownValue.textContent = "00:00";
         if (countdownCaption) countdownCaption.textContent = "expired";
+        forgetTimerStarted();
         stopCountdown();
         return;
       }
@@ -167,6 +196,7 @@
   }
 
   function applyLease(leaseData) {
+    rememberTimerStarted();
     waitingForLease = false;
     showPollStep();
     setPill("Timer active", "ready");
@@ -181,9 +211,29 @@
     setSubmitState(false, "Saved");
   }
 
-  function applyStatus(data) {
+  function showTimerChoice(data) {
+    waitingForLease = true;
+    renderCountdown(null);
+    showTimerStep();
+    setPill(data && data.healthy ? "Ready" : "Starting", data && data.healthy ? "ready" : "");
+    setStatusDetail("");
+    setSubmitState(false, "Start Timer");
+    if (timerCopy) {
+      timerCopy.textContent = data && data.healthy
+        ? "The app is ready. Choose a run window to continue."
+        : "The app is waking up. Pick how long it should stay available.";
+    }
+    setFormStatus("Choose a timer to continue.", false);
+    return false;
+  }
+
+  function applyStatus(data, allowActiveLease) {
     if (!data) return false;
     waitingForLease = !data.leaseActive;
+
+    if (data.leaseActive && !allowActiveLease) {
+      return showTimerChoice(data);
+    }
 
     if (data.healthy && data.leaseActive) {
       setPill("Ready", "ready");
@@ -205,16 +255,9 @@
       return true;
     }
 
+    forgetTimerStarted();
     renderCountdown(null);
-    showTimerStep();
-    setPill(data.healthy ? "Ready" : "Starting", data.healthy ? "ready" : "");
-    setStatusDetail("");
-    setSubmitState(false, "Start Timer");
-    if (timerCopy) {
-      timerCopy.textContent = data.healthy
-        ? "The app is ready. Choose a run window to continue."
-        : "The app is waking up. Pick how long it should stay available.";
-    }
+    showTimerChoice(data);
     setFormStatus(message, false);
     return false;
   }
@@ -222,16 +265,16 @@
   function startPolling(initialData) {
     if (pollTimer) return;
     if (initialData) {
-      applyStatus(initialData);
+      applyStatus(initialData, true);
     } else {
       poll()
-        .then(applyStatus)
+        .then((data) => { applyStatus(data, true); })
         .catch(() => { setStatus("Unable to check app status yet.", true); });
     }
     pollTimer = setInterval(() => {
       poll()
         .then((data) => {
-          if (!applyStatus(data)) {
+          if (!applyStatus(data, true)) {
             clearInterval(pollTimer);
             pollTimer = null;
           }
@@ -250,7 +293,8 @@
     try {
       const data = await poll();
       if (data && data.leaseActive) {
-        applyStatus(data);
+        rememberTimerStarted();
+        applyStatus(data, true);
         setFormStatus("Timer started. Waiting for health check...", false);
         if (!pollTimer) {
           startPolling(data);
@@ -273,7 +317,7 @@
 
   poll()
     .then((data) => {
-      if (applyStatus(data)) {
+      if (applyStatus(data, browserStartedTimer())) {
         startPolling(data);
       }
     })
