@@ -1,0 +1,262 @@
+# Wait UI
+
+The wait UI is the browser page Reveille serves while a stopped target is being
+started.
+
+It lives under:
+
+```text
+/_reveille/wait
+```
+
+Traefik must route `/_reveille/*` back to Reveille for this page to work.
+
+## User Flow
+
+The wait UI has two main states:
+
+1. timer selection
+2. countdown and readiness polling
+
+The page starts on timer selection. The user must choose a run window before the
+page moves into countdown mode.
+
+This is intentional. An existing backend lease from another tab, previous
+browser session, or manual test should not skip the timer selection screen for a
+new browser session.
+
+The browser records that this tab session started a timer in `sessionStorage`.
+That record is only a UI guard. The backend lease remains the source of truth
+for whether the app should keep running.
+
+## Timer Selection
+
+The timer choices come from the target lease config:
+
+```yaml
+lease:
+  default: 2h
+  options:
+    - 30m
+    - 1h
+    - 2h
+    - 4h
+    - never
+```
+
+If the target does not override lease settings, Reveille uses
+`defaults.lease` and `defaults.leaseOptions` from `reveille.yml`.
+
+When the user clicks `Start Timer`, the browser submits the selected lease to
+Reveille:
+
+```http
+POST /_reveille/wait?host=app.example.com
+Content-Type: multipart/form-data
+
+action=lease
+lease=2h
+```
+
+The compatibility lease API also accepts JSON:
+
+```json
+{"lease":"2h"}
+```
+
+The lease value must match one of the configured option labels. Matching is
+case-insensitive, and `never` is accepted for the `Never` option. If the request
+does not include a lease value, Reveille uses the target's default lease.
+
+## Countdown Mode
+
+After the timer is saved:
+
+1. Reveille returns the active lease.
+2. The browser switches to countdown mode.
+3. The countdown uses the backend `expiresAt` timestamp.
+4. The page polls readiness until the target is healthy.
+
+For finite leases, the counter counts down to the lease expiration.
+
+For `never`, automatic stop is disabled and the countdown panel is hidden.
+
+If the active finite lease expires while the page is open, the countdown changes
+to `00:00`, the browser forgets its session timer marker, and the next status
+poll sends the UI back to timer selection if there is no active backend lease.
+
+## Redirect Behavior
+
+The wait UI redirects only after both conditions are true:
+
+- the browser session has started a timer
+- Reveille reports the target healthy
+
+When those conditions are met, the browser redirects to `returnTo`, which is
+derived from the original Traefik request path.
+
+`returnTo` is sanitized by Reveille. If it is missing or empty when the page is
+rendered, the browser config uses `/`.
+
+## Browser Control Channel
+
+The wait UI uses `/_reveille/wait` for browser calls:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/_reveille/wait?...` | Render the page |
+| `GET` | `/_reveille/wait?...&format=status` | Poll status JSON |
+| `POST` | `/_reveille/wait?...` | Create a lease or stop the target by form action |
+
+The compatibility API routes may still exist:
+
+| Method | Path |
+| --- | --- |
+| `GET` | `/_reveille/api/status` |
+| `POST` | `/_reveille/api/lease` |
+| `POST` | `/_reveille/api/stop` |
+
+The browser UI should use `/_reveille/wait` so Traefik only needs one public
+Reveille path prefix.
+
+## Status JSON
+
+Status polling uses:
+
+```text
+GET /_reveille/wait?host=app.example.com&returnTo=/docs&format=status
+```
+
+The response includes the fields the page needs for countdown, redirect, and
+readiness messaging:
+
+```json
+{
+  "host": "app.example.com",
+  "healthy": false,
+  "returnTo": "/docs",
+  "leaseActive": true,
+  "expiresAt": "2026-06-17T18:30:00Z",
+  "readinessState": "waiting_for_health",
+  "statusMessage": "App start was requested. Reveille is waiting for the health endpoint.",
+  "lastCheck": "2026-06-17T16:30:00Z",
+  "healthStatus": 503,
+  "healthError": ""
+}
+```
+
+For `never`, the response uses:
+
+```json
+{
+  "leaseActive": true,
+  "lease": "Never",
+  "never": true
+}
+```
+
+The important UI fields are:
+
+| Field | Use |
+| --- | --- |
+| `healthy` | Allows redirect when a browser-started lease is active |
+| `returnTo` | Destination after readiness passes |
+| `leaseActive` | Decides whether to show timer selection or countdown/polling |
+| `expiresAt` | Backend deadline used for finite countdowns |
+| `never` | Hides the countdown and labels the lease as no-stop |
+| `readinessState` | Selects health-specific waiting/error copy |
+| `statusMessage` | User-facing readiness message from the server |
+| `healthStatus` | Shows the non-healthy HTTP status from `healthUrl` checks |
+| `healthError` | Shows health-check connection or request errors |
+| `lastCheck` | Shows the last successful check timestamp |
+
+`readinessState` values currently include:
+
+- `ready`
+- `waiting_for_health`
+- `health_unreachable`
+- `health_unhealthy`
+
+The UI treats status polling failures differently depending on state. Before a
+timer is saved, errors stay in the timer-selection status area. After a timer is
+saved, errors appear in the readiness area.
+
+## Manual Stop
+
+Countdown mode includes a `Stop App` form:
+
+```http
+POST /_reveille/wait?host=app.example.com
+Content-Type: multipart/form-data
+
+action=stop
+```
+
+That branch calls the same stop behavior as `POST /_reveille/api/stop`.
+Reveille asks the lease manager to stop the target immediately using
+`defaults.stopGrace`, clears the active lease, and returns JSON:
+
+```json
+{"status":"stopped"}
+```
+
+## Client Config
+
+The wait page embeds config in:
+
+```html
+<script id="reveille-config" type="application/json">...</script>
+```
+
+The script content must be a JSON object, not an escaped JSON string.
+
+Correct:
+
+```json
+{"host":"app.example.com","publicPath":"/_reveille","waitPath":"/_reveille/wait"}
+```
+
+Incorrect:
+
+```json
+"{\"host\":\"app.example.com\"}"
+```
+
+If config is double-encoded, `JSON.parse` returns a string and the UI cannot
+build correct backend URLs.
+
+## Static Assets
+
+The wait page serves embedded static assets:
+
+```text
+/_reveille/static/wait.css
+/_reveille/static/wait.js
+```
+
+The HTML appends an asset version query string:
+
+```text
+/_reveille/static/wait.js?v=<version>
+```
+
+When changing the wait-page HTML, CSS, JavaScript, or config contract, bump
+`waitAssetVersion` in `internal/server/wait_view.go`.
+
+This prevents browsers from reusing old JavaScript after a backend/template
+change.
+
+## Implementation Files
+
+- `internal/server/templates/wait.html`: page structure and form hooks
+- `internal/server/static/wait.css`: visual design and responsive layout
+- `internal/server/static/wait.js`: browser state, timer submission, polling,
+  countdown, and redirect
+- `internal/server/wait_view.go`: template data, embedded assets, asset version,
+  and wait-route dispatch
+
+## Related Docs
+
+- Runtime flow: [runtime-flow.md](runtime-flow.md)
+- Traefik route setup: [traefik/get-started.md](traefik/get-started.md)
+- Runtime config: [reveille-yml.md](reveille-yml.md)

@@ -1,0 +1,136 @@
+# Runtime Flow
+
+This page describes what happens when a user visits a Reveille-managed app.
+
+Reveille does not replace Traefik. Traefik still owns public routing. Reveille
+only answers the question: should this request continue to the app now, or does
+the app need to be started first?
+
+## Overview
+
+```text
+Browser
+  -> Traefik app router
+  -> Reveille forwardAuth
+  -> Dockhand start/check calls
+  -> Reveille wait page
+  -> Traefik app router
+  -> Target app
+```
+
+The main pieces are:
+
+- Browser: requests the public app domain.
+- Traefik: routes public HTTP traffic and calls Reveille through `forwardAuth`.
+- Reveille: decides whether a target should start, tracks leases, and serves the
+  wait UI.
+- Dockhand: starts, stops, and reports container/stack state.
+- Target app: the service the user actually wanted to open.
+
+## Target Prerequisite
+
+Reveille can start stopped containers or stacks, but the target must already
+exist in Docker/Dockhand.
+
+For Compose-managed targets, create the containers without starting them first:
+
+```sh
+docker compose up -d --no-start
+```
+
+After that, Reveille can ask Dockhand to start the stopped target on demand.
+
+## Healthy Target
+
+When the target is already healthy:
+
+1. The browser opens the app domain.
+2. The app router runs the `reveille@file` middleware.
+3. Traefik calls Reveille at `/api/traefik/forward-auth`.
+4. Reveille finds the matching target entry by hostname.
+5. Reveille checks readiness.
+6. Reveille returns `204 No Content`.
+7. Traefik forwards the original request to the app.
+
+The browser never sees the wait page in this path.
+
+## Stopped Target
+
+When the target is stopped or not ready:
+
+1. The browser opens the app domain.
+2. Traefik calls Reveille through `forwardAuth`.
+3. Reveille finds the matching target entry.
+4. Reveille asks Dockhand to start the container or stack.
+5. Reveille redirects the browser to:
+
+```text
+https://<app-host>/_reveille/wait?host=<app-host>&returnTo=<original-path>
+```
+
+The redirect stays on the same public host so the browser can reach it through
+Traefik.
+
+## Wait Page
+
+The wait page is served by Reveille through the `/_reveille/*` Traefik route.
+
+The wait page starts on timer selection. The user must choose a lease duration
+before the page moves to countdown mode.
+
+After the user starts a timer:
+
+1. The browser posts the selected lease to `/_reveille/wait`.
+2. Reveille records or replaces the active lease for that host.
+3. The page switches to countdown mode.
+4. The countdown is based on the backend lease expiration.
+5. The browser polls:
+
+```text
+GET /_reveille/wait?host=<app-host>&returnTo=<path>&format=status
+```
+
+Polling continues until Reveille reports the target healthy.
+
+## Redirect Back To The App
+
+Once the target is healthy and the browser has started a timer:
+
+1. The wait page receives a healthy status response.
+2. The browser redirects to `returnTo`.
+3. The app router runs `reveille@file` again.
+4. Reveille returns `204 No Content`.
+5. Traefik forwards the request to the app.
+
+## Lease Expiry
+
+Finite leases have an expiration time.
+
+When a finite lease expires:
+
+1. The lease timer fires inside Reveille.
+2. Reveille calls Dockhand to stop the target.
+3. Reveille removes the active lease from memory.
+4. The next visit to the app domain can start the flow again.
+
+`never` leases disable automatic stop for that active lease. The target must be
+stopped manually or replaced by a finite lease.
+
+## Where Failures Show Up
+
+| Stage | Common Symptom | First Place To Check |
+| --- | --- | --- |
+| App router middleware | App opens without starting Reveille | app router middleware list |
+| Forward-auth call | Traefik error before wait page | Traefik logs and `http://reveille:8080/healthz` from Traefik |
+| Dockhand start | Wait page never appears | Reveille logs and Dockhand API/token config |
+| Browser wait route | `404 NOT_FOUND` on timer update | `/_reveille/*` Traefik route and route priority |
+| Client config/cache | UI calls wrong endpoint | live `wait.js` cache-buster and `#reveille-config` JSON |
+| Readiness | Countdown runs but never redirects | `healthUrl`, `healthyStatus`, and status JSON |
+| Lease expiry | Target does not stop | Reveille lease logs and Dockhand stop call |
+
+## Related Docs
+
+- Traefik setup: [traefik/get-started.md](traefik/get-started.md)
+- Traefik details: [traefik/reference.md](traefik/reference.md)
+- Target files: [targets/get-started.md](targets/get-started.md)
+- Runtime config: [reveille-yml.md](reveille-yml.md)
