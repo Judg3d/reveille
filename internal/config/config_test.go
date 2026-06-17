@@ -13,6 +13,7 @@ func TestLoadParsesDurationsNeverAndEnv(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`
 server:
   listen: ":9090"
+  failClosedUnknownHosts: true
 log:
   level: "warning"
 dockhand:
@@ -38,6 +39,9 @@ defaults:
 	}
 	if cfg.Server.Listen != ":9090" || cfg.Dockhand.APIToken != "dh_test" || cfg.Dockhand.EnvironmentID != 7 {
 		t.Fatalf("unexpected config: %+v", cfg)
+	}
+	if !cfg.Server.FailClosedUnknownHosts {
+		t.Fatal("failClosedUnknownHosts = false, want true")
 	}
 	if cfg.Log.Level != "warn" {
 		t.Fatalf("log level = %q", cfg.Log.Level)

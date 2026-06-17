@@ -15,6 +15,11 @@ server:
   # Traefik must route this prefix back to the Reveille container.
   publicPath: "/_reveille"
 
+  # When false, unknown forward-auth hosts return 204 so a shared Traefik
+  # middleware can be attached to routers not managed by Reveille.
+  # When true, unknown forward-auth hosts return 404 so host typos fail closed.
+  failClosedUnknownHosts: false
+
 log:
   # Supported levels: debug, info, warn, warning, error.
   # Use debug while wiring routes and health checks; use info for normal use.

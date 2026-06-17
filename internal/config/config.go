@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"reveille/internal/logging"
 	"gopkg.in/yaml.v3"
+	"reveille/internal/logging"
 )
 
 type Config struct {
@@ -18,8 +18,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Listen     string
-	PublicPath string
+	Listen                 string
+	PublicPath             string
+	FailClosedUnknownHosts bool
 }
 
 type LogConfig struct {
@@ -49,8 +50,9 @@ type LeaseDuration struct {
 
 type rawConfig struct {
 	Server struct {
-		Listen     string `yaml:"listen"`
-		PublicPath string `yaml:"publicPath"`
+		Listen                 string `yaml:"listen"`
+		PublicPath             string `yaml:"publicPath"`
+		FailClosedUnknownHosts bool   `yaml:"failClosedUnknownHosts"`
 	} `yaml:"server"`
 	Log struct {
 		Level string `yaml:"level"`
@@ -88,6 +90,7 @@ func Load(path string) (Config, error) {
 	if raw.Server.PublicPath != "" {
 		cfg.Server.PublicPath = raw.Server.PublicPath
 	}
+	cfg.Server.FailClosedUnknownHosts = raw.Server.FailClosedUnknownHosts
 	if raw.Log.Level != "" {
 		level, err := logging.NormalizeLevel(raw.Log.Level)
 		if err != nil {
