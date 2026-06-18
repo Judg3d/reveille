@@ -635,7 +635,7 @@ func newTestServerWithHealthURL(t *testing.T, healthURL string) (*Server, *lease
 	configPath := filepath.Join(hostDir, "pdf.yml")
 
 	if err := os.WriteFile(configPath, []byte(
-		"target:\n  pdf:\n    type: container\n    id: pdf\n    hostname: pdf.example.com\n    healthUrl: \""+healthURL+"\"\n"), 0o644); err != nil {
+		"target:\n  pdf:\n    type: container\n    id: pdf\n    environment: homelab\n    hostname: pdf.example.com\n    healthUrl: \""+healthURL+"\"\n"), 0o644); err != nil {
 		t.Fatalf("write host config: %v", err)
 	}
 

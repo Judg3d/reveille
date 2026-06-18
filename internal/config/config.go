@@ -28,10 +28,9 @@ type LogConfig struct {
 }
 
 type DockhandConfig struct {
-	BaseURL       string
-	APIToken      string
-	EnvironmentID int
-	Timeout       time.Duration
+	BaseURL  string
+	APIToken string
+	Timeout  time.Duration
 }
 
 type Defaults struct {
@@ -58,10 +57,9 @@ type rawConfig struct {
 		Level string `yaml:"level"`
 	} `yaml:"log"`
 	Dockhand struct {
-		BaseURL       string `yaml:"baseUrl"`
-		APIToken      string `yaml:"apiToken"`
-		EnvironmentID int    `yaml:"environmentId"`
-		Timeout       string `yaml:"timeout"`
+		BaseURL  string `yaml:"baseUrl"`
+		APIToken string `yaml:"apiToken"`
+		Timeout  string `yaml:"timeout"`
 	} `yaml:"dockhand"`
 	Defaults struct {
 		Lease        string   `yaml:"lease"`
@@ -106,9 +104,6 @@ func Load(path string) (Config, error) {
 	}
 	if cfg.Dockhand.APIToken == "" {
 		cfg.Dockhand.APIToken = os.Getenv("DOCKHAND_API_TOKEN")
-	}
-	if raw.Dockhand.EnvironmentID != 0 {
-		cfg.Dockhand.EnvironmentID = raw.Dockhand.EnvironmentID
 	}
 	if raw.Dockhand.Timeout != "" {
 		d, err := time.ParseDuration(raw.Dockhand.Timeout)
@@ -170,10 +165,9 @@ func DefaultConfig() Config {
 		Server: ServerConfig{Listen: ":8080", PublicPath: "/_reveille"},
 		Log:    LogConfig{Level: "info"},
 		Dockhand: DockhandConfig{
-			BaseURL:       "http://dockhand:3000",
-			APIToken:      os.Getenv("DOCKHAND_API_TOKEN"),
-			EnvironmentID: 1,
-			Timeout:       30 * time.Second,
+			BaseURL:  "http://dockhand:3000",
+			APIToken: os.Getenv("DOCKHAND_API_TOKEN"),
+			Timeout:  30 * time.Second,
 		},
 		Defaults: Defaults{
 			Lease:        lease,
@@ -198,9 +192,6 @@ func validate(cfg Config) error {
 	}
 	if cfg.Dockhand.BaseURL == "" {
 		return fmt.Errorf("dockhand.baseUrl is required")
-	}
-	if cfg.Dockhand.EnvironmentID <= 0 {
-		return fmt.Errorf("dockhand.environmentId must be positive")
 	}
 	if cfg.Dockhand.Timeout <= 0 || cfg.Defaults.StartTimeout <= 0 || cfg.Defaults.PollInterval <= 0 {
 		return fmt.Errorf("timeouts must be positive")

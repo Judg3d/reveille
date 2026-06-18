@@ -19,7 +19,6 @@ log:
 dockhand:
   baseUrl: "http://dockhand.local"
   apiToken: "${DOCKHAND_API_TOKEN}"
-  environmentId: 7
   timeout: "10s"
 defaults:
   lease: "1h"
@@ -37,7 +36,7 @@ defaults:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Server.Listen != ":9090" || cfg.Dockhand.APIToken != "dh_test" || cfg.Dockhand.EnvironmentID != 7 {
+	if cfg.Server.Listen != ":9090" || cfg.Dockhand.APIToken != "dh_test" {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
 	if !cfg.Server.FailClosedUnknownHosts {

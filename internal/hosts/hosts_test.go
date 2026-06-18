@@ -16,6 +16,7 @@ target:
   jellyfin:
     type: container
     id: jellyfin
+    environment: homelab
     hostname: jellyfin.example.com
     healthUrl: http://jellyfin:8096/health
     healthyStatus:
@@ -44,6 +45,7 @@ func TestReloadReplacesHostMap(t *testing.T) {
 target:
   one:
     type: stack
+    environment: homelab
     hostname: one.example.com
     healthUrl: http://one/
 `), 0o600); err != nil {
@@ -57,6 +59,7 @@ target:
 target:
   two:
     type: stack
+    environment: homelab
     hostname: two.example.com
     healthUrl: http://two/
 `), 0o600); err != nil {
@@ -122,10 +125,12 @@ func TestLoadFileSupportsNamedTargetsMap(t *testing.T) {
 target:
   convertx:
     type: stack
+    environment: homelab
     hostname: convert.example.com
     healthUrl: http://10.0.0.50:3003/healthcheck
   app2:
     type: stack
+    environment: homelab
     hostname: convert2.example.com
     healthUrl: http://10.0.0.50:3002/healthcheck
 `), 0o600); err != nil {
@@ -153,6 +158,7 @@ target:
   convertx:
     type: stack
     name: convertx-prod
+    environment: homelab
     hostname: convert.example.com
     healthUrl: http://10.0.0.50:3003/healthcheck
 `), 0o600); err != nil {
@@ -176,6 +182,7 @@ func TestLoadFileRejectsUnsupportedHealthURLScheme(t *testing.T) {
 target:
   app:
     type: stack
+    environment: homelab
     hostname: app.example.com
     healthUrl: file:///etc/passwd
 `), 0o600); err != nil {
@@ -192,6 +199,7 @@ func TestLoadFileRejectsHealthURLWithoutHost(t *testing.T) {
 target:
   app:
     type: stack
+    environment: homelab
     hostname: app.example.com
     healthUrl: http:///health
 `), 0o600); err != nil {
@@ -208,6 +216,7 @@ func TestLoadFileRejectsHealthURLCredentials(t *testing.T) {
 target:
   app:
     type: stack
+    environment: homelab
     hostname: app.example.com
     healthUrl: https://user:pass@app.example.com/health
 `), 0o600); err != nil {
@@ -224,6 +233,7 @@ func TestLoadFileTrimsHealthURL(t *testing.T) {
 target:
   app:
     type: stack
+    environment: homelab
     hostname: app.example.com
     healthUrl: " https://app.example.com/health#local "
 `), 0o600); err != nil {
@@ -235,6 +245,22 @@ target:
 	}
 	if got := hosts[0].Target.HealthURL; got != "https://app.example.com/health" {
 		t.Fatalf("healthUrl = %q, want normalized URL", got)
+	}
+}
+
+func TestLoadFileRejectsMissingEnvironment(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.yml")
+	if err := os.WriteFile(path, []byte(`
+target:
+  app:
+    type: container
+    id: app
+    hostname: app.example.com
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadFile(path, config.DefaultConfig().Defaults); err == nil || !strings.Contains(err.Error(), "target.environment is required") {
+		t.Fatalf("LoadFile() err = %v, want environment validation error", err)
 	}
 }
 

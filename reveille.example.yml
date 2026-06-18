@@ -33,10 +33,6 @@ dockhand:
   # deployment secret instead of putting secrets in this file.
   # apiToken: "${DOCKHAND_API_TOKEN}"
 
-  # Default Dockhand environment used when a target entry does not override
-  # target.<name>.environment.
-  environmentId: 1
-
   # HTTP timeout for Dockhand API calls.
   timeout: "30s"
 

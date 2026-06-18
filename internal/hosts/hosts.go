@@ -288,6 +288,9 @@ func validateHost(path string, index int, h Host) (Host, error) {
 	if h.Target.Type != "container" && h.Target.Type != "stack" {
 		return h, fmt.Errorf("%s target.type must be container or stack", label)
 	}
+	if h.Target.Environment == "" {
+		return h, fmt.Errorf("%s target.environment is required", label)
+	}
 	if h.Target.Type == "container" && h.Target.ID == "" {
 		return h, fmt.Errorf("%s target.id is required for container targets", label)
 	}

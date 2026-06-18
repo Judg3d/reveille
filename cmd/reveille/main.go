@@ -38,7 +38,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	dh := dockhand.NewClient(cfg.Dockhand.BaseURL, cfg.Dockhand.APIToken, cfg.Dockhand.EnvironmentID, cfg.Dockhand.Timeout)
+	dh := dockhand.NewClient(cfg.Dockhand.BaseURL, cfg.Dockhand.APIToken, cfg.Dockhand.Timeout)
 	checker := health.NewChecker(http.DefaultClient)
 	leases := leases.NewManager(func(ctx context.Context, host hosts.Host) error {
 		return dh.Stop(ctx, host.Target)

@@ -18,7 +18,6 @@ import (
 type Client struct {
 	baseURL string
 	token   string
-	envID   int
 	client  *http.Client
 	mu      sync.Mutex
 	envs    map[string]int
@@ -38,11 +37,10 @@ type Environment struct {
 	Name string `json:"name"`
 }
 
-func NewClient(baseURL, token string, envID int, timeout time.Duration) *Client {
+func NewClient(baseURL, token string, timeout time.Duration) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		token:   token,
-		envID:   envID,
 		client:  &http.Client{Timeout: timeout},
 		envs:    map[string]int{},
 	}
@@ -143,7 +141,7 @@ func (c *Client) findContainer(ctx context.Context, configured string, envID int
 
 func (c *Client) envIDFor(ctx context.Context, target hosts.Target) (int, error) {
 	if target.Environment == "" {
-		return c.envID, nil
+		return 0, fmt.Errorf("target environment is required")
 	}
 	if id, err := strconv.Atoi(target.Environment); err == nil {
 		return id, nil

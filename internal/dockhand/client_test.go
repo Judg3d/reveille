@@ -14,7 +14,7 @@ import (
 
 func TestContainerStartResolvesNameAndSetsHeaders(t *testing.T) {
 	var sawList, sawStart bool
-	client := NewClient("http://dockhand.test", "dh_test", 3, time.Second)
+	client := NewClient("http://dockhand.test", "dh_test", time.Second)
 	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.Header.Get("Authorization") != "Bearer dh_test" || r.Header.Get("Accept") != "application/json" {
 			t.Fatalf("headers = %+v", r.Header)
@@ -39,7 +39,7 @@ func TestContainerStartResolvesNameAndSetsHeaders(t *testing.T) {
 		return response(http.StatusInternalServerError, nil), nil
 	})
 
-	if err := client.Start(context.Background(), hosts.Target{Type: "container", ID: "jellyfin"}); err != nil {
+	if err := client.Start(context.Background(), hosts.Target{Type: "container", ID: "jellyfin", Environment: "3"}); err != nil {
 		t.Fatal(err)
 	}
 	if !sawList || !sawStart {
@@ -49,13 +49,13 @@ func TestContainerStartResolvesNameAndSetsHeaders(t *testing.T) {
 
 func TestStackStopPath(t *testing.T) {
 	var path string
-	client := NewClient("http://dockhand.test", "", 9, time.Second)
+	client := NewClient("http://dockhand.test", "", time.Second)
 	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		path = r.URL.Path + "?" + r.URL.RawQuery
 		return response(http.StatusNoContent, nil), nil
 	})
 
-	if err := client.Stop(context.Background(), hosts.Target{Type: "stack", Name: "paperless"}); err != nil {
+	if err := client.Stop(context.Background(), hosts.Target{Type: "stack", Name: "paperless", Environment: "9"}); err != nil {
 		t.Fatal(err)
 	}
 	if path != "/api/stacks/paperless/stop?env=9" {
@@ -64,7 +64,7 @@ func TestStackStopPath(t *testing.T) {
 }
 
 func TestHealthyUsesDockhandContainerHealth(t *testing.T) {
-	client := NewClient("http://dockhand.test", "", 1, time.Second)
+	client := NewClient("http://dockhand.test", "", time.Second)
 	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		if r.URL.Path != "/api/containers" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
@@ -79,7 +79,7 @@ func TestHealthyUsesDockhandContainerHealth(t *testing.T) {
 		return response(http.StatusOK, body), nil
 	})
 
-	healthy, err := client.Healthy(context.Background(), hosts.Target{Type: "container", ID: "jellyfin"})
+	healthy, err := client.Healthy(context.Background(), hosts.Target{Type: "container", ID: "jellyfin", Environment: "1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestHealthyUsesDockhandContainerHealth(t *testing.T) {
 
 func TestEnvironmentNameResolvesToID(t *testing.T) {
 	var sawEnvLookup, sawContainerLookup bool
-	client := NewClient("http://dockhand.test", "", 1, time.Second)
+	client := NewClient("http://dockhand.test", "", time.Second)
 	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		switch r.URL.Path {
 		case "/api/environments":
@@ -116,6 +116,15 @@ func TestEnvironmentNameResolvesToID(t *testing.T) {
 	}
 	if !healthy || !sawEnvLookup || !sawContainerLookup {
 		t.Fatalf("healthy=%v sawEnvLookup=%v sawContainerLookup=%v", healthy, sawEnvLookup, sawContainerLookup)
+	}
+}
+
+func TestMissingEnvironmentFails(t *testing.T) {
+	client := NewClient("http://dockhand.test", "", time.Second)
+
+	err := client.Start(context.Background(), hosts.Target{Type: "container", ID: "jellyfin"})
+	if err == nil || err.Error() != "target environment is required" {
+		t.Fatalf("Start() err = %v, want missing environment error", err)
 	}
 }
 
