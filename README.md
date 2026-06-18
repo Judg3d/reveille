@@ -27,13 +27,9 @@ services:
     image: your-registry/reveille:latest
     container_name: reveille
     restart: unless-stopped
-    environment:
-      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:-}
-    command:
-      - -config
-      - /etc/reveille/reveille.yml
-      - -hosts
-      - /etc/reveille/hosts
+    env_file:
+      - path: .env
+        required: false
     expose:
       - "8080"
     volumes:
@@ -47,9 +43,9 @@ networks:
     external: true
 ```
 
-For deployments that do not route Reveille through Traefik, uncomment the
-`ports:` example in the Compose file and set `REVEILLE_BIND_HOST` to a narrow
-host address such as `127.0.0.1` or a specific LAN/VPN IP.
+Reveille is designed to sit behind Traefik. The Compose examples use `expose`
+so Traefik can reach Reveille on the shared Docker network without publishing a
+host-level port.
 
 Create local config from the example:
 
@@ -57,6 +53,9 @@ Create local config from the example:
 cp reveille.example.yml reveille.yml
 cp .env.example .env
 ```
+
+Put `DOCKHAND_API_TOKEN` in `.env` when Dockhand authentication is enabled.
+Compose loads that file into the container through `env_file`.
 
 ## Run Locally
 
