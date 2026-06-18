@@ -212,7 +212,7 @@ lease.
 | Symptom | Likely Cause | Check |
 | --- | --- | --- |
 | Timer save returns `invalid lease` | Submitted value is not in `lease.options` | Host lease config and browser request payload |
-| Timer saves but countdown is wrong | Browser is using stale assets or an old status response | `wait.js` cache-buster and status JSON `expiresAt` |
+| Timer saves but countdown is wrong | Browser is using stale assets or an old status response | `wait.js` asset and status JSON `expiresAt` |
 | Target stops earlier than expected | A replacement finite lease shortened the active timer | Reveille lease accepted logs |
 | Target never stops | Active lease is `never` or Dockhand stop failed | Status JSON `never`, Reveille logs, Dockhand logs |
 | Stop button fails | Dockhand stop call failed or timed out | Reveille logs and `defaults.stopGrace` |

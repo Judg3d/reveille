@@ -356,12 +356,6 @@ Current assets:
 | `/_reveille/static/wait.css` | wait-page styles |
 | `/_reveille/static/wait.js` | wait-page behavior |
 
-The wait page appends an asset version query string, such as:
-
-```text
-/_reveille/static/wait.js?v=<version>
-```
-
 ## Related Docs
 
 - Wait UI: [wait-ui.md](wait-ui.md)

@@ -172,7 +172,7 @@ If the wait page loads but timer updates fail with `404 NOT_FOUND`:
 
 - verify `PathPrefix('/_reveille')` is routed to Reveille
 - verify the `reveille-ui` route priority is higher than the app router
-- verify the live page loads the current `wait.js` cache-buster URL
+- verify the live page loads `/_reveille/static/wait.js`
 - verify `GET /_reveille/wait?...&format=status` returns JSON
 - verify `POST /_reveille/wait?host=...` reaches Reveille and logs a lease
   accepted/rejected message

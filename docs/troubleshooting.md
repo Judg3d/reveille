@@ -90,8 +90,8 @@ If the response is `400 invalid lease`, the submitted lease value is not one of
 the configured options for that host.
 
 If the direct POST works but the browser fails, hard-refresh the page or use a
-private window. Also confirm the page source references the current
-`wait.js?v=...` asset version.
+private window. Also confirm the page source loads `/_reveille/static/wait.js`
+and embeds a JSON object in `#reveille-config`.
 
 Related docs:
 

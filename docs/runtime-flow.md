@@ -125,7 +125,7 @@ stopped manually or replaced by a finite lease.
 | Forward-auth call | Traefik error before wait page | Traefik logs and `http://reveille:8080/healthz` from Traefik |
 | Dockhand start | Wait page never appears | Reveille logs and Dockhand API/token config |
 | Browser wait route | `404 NOT_FOUND` on timer update | `/_reveille/*` Traefik route and route priority |
-| Client config/cache | UI calls wrong endpoint | live `wait.js` cache-buster and `#reveille-config` JSON |
+| Client config/cache | UI calls wrong endpoint | live `wait.js` asset and `#reveille-config` JSON |
 | Readiness | Countdown runs but never redirects | `healthUrl`, `healthyStatus`, and status JSON |
 | Lease expiry | Target does not stop | Reveille lease logs and Dockhand stop call |
 

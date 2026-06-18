@@ -242,26 +242,14 @@ The wait page serves embedded static assets:
 /_reveille/static/wait.js
 ```
 
-The HTML appends an asset version query string:
-
-```text
-/_reveille/static/wait.js?v=<version>
-```
-
-When changing the wait-page HTML, CSS, JavaScript, or config contract, bump
-`waitAssetVersion` in `internal/server/wait_view.go`.
-
-This prevents browsers from reusing old JavaScript after a backend/template
-change.
-
 ## Implementation Files
 
 - `internal/server/templates/wait.html`: page structure and form hooks
 - `internal/server/static/wait.css`: visual design and responsive layout
 - `internal/server/static/wait.js`: browser state, timer submission, polling,
   countdown, and redirect
-- `internal/server/wait_view.go`: template data, embedded assets, asset version,
-  and wait-route dispatch
+- `internal/server/wait_view.go`: template data, embedded assets, and wait-route
+  dispatch
 
 ## Related Docs
 
