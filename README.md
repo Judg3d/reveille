@@ -1,7 +1,5 @@
 # Reveille
 
-[![CI](https://github.com/Judg3d/reveille/actions/workflows/ci.yml/badge.svg)](https://github.com/Judg3d/reveille/actions/workflows/ci.yml)
-
 Reveille is an on-demand lifecycle manager for homelab services behind Traefik.
 It wakes stopped Dockhand-managed containers or stacks when someone visits their
 public domain, shows a timer selection page while the app starts, and lets
