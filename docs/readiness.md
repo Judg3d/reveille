@@ -67,6 +67,7 @@ Use `healthyStatus` to list the HTTP response codes that count as healthy:
 target:
   jellyfin:
     id: jellyfin
+    environment: homelab
     hostname: jellyfin.example.com
     healthUrl: http://jellyfin:8096/health
     healthyStatus:

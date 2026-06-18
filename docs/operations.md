@@ -93,10 +93,10 @@ Set `log.level: "debug"` in `reveille.yml` when you need status polling details.
 
 ## Check Reveille Health
 
-From the Docker host, if Reveille publishes port `8080`:
+From inside the Reveille container:
 
 ```sh
-wget -qO- http://localhost:8080/healthz
+docker exec reveille wget -qO- http://127.0.0.1:8080/healthz
 ```
 
 Expected response:
@@ -124,14 +124,14 @@ matters:
 docker exec reveille wget -S -O- http://dockhand:3000/api/environments
 ```
 
-Check the default Dockhand environment:
+Check the target's Dockhand environment:
 
 ```sh
 docker exec reveille wget -S -O- 'http://dockhand:3000/api/containers?all=true&env=1'
 ```
 
-Replace `1` with `dockhand.environmentId` or the target's resolved environment
-ID.
+Replace `1` with the target's numeric environment ID. If the target uses an
+environment name, resolve it from `/api/environments` first.
 
 If Dockhand requires a token, these unauthenticated checks may return an auth
 error. In that case, verify that `DOCKHAND_API_TOKEN` is present in the Reveille

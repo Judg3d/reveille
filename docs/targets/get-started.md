@@ -72,9 +72,8 @@ How to format a container entry:
 
 - use one key under `target:`
 - set `id` to the Dockhand container name or ID
+- set `environment` to the Dockhand environment name or numeric ID
 - set `hostname` to the public hostname that should wake it
-- add `environment` only when you need to override the default Dockhand
-  environment
 
 Readiness behavior:
 
@@ -125,6 +124,7 @@ How to format a stack entry:
 
 - use one key under `target:`
 - set `type: stack`
+- set `environment` to the Dockhand environment name or numeric ID
 - set `hostname` to the public hostname that should wake it
 - set `healthUrl` to an internal URL Reveille can use to decide when the app is
   ready
@@ -144,15 +144,18 @@ each named entry independently.
 target:
   media:
     id: jellyfin
+    environment: homelab
     hostname: media.example.com
 
   app1:
     type: stack
+    environment: homelab
     hostname: app1.example.com
     healthUrl: http://app1-web:8080/health
 
   app2:
     type: stack
+    environment: homelab
     hostname: app2.example.com
     healthUrl: http://app2-web:8080/health
 ```
@@ -165,6 +168,7 @@ target:
   app1:
     type: stack
     name: app1-prod
+    environment: homelab
     hostname: app1.example.com
     healthUrl: http://app1-web:8080/health
 ```

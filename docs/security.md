@@ -42,8 +42,15 @@ Preferred setup:
 ```yaml
 services:
   reveille:
-    environment:
-      DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:-}
+    env_file:
+      - path: .env
+        required: false
+```
+
+Put the token in `.env`:
+
+```dotenv
+DOCKHAND_API_TOKEN=<token>
 ```
 
 Reveille also supports `dockhand.apiToken` in `reveille.yml`, including
@@ -190,20 +197,9 @@ expose:
   - "8080"
 ```
 
-Avoid publishing Reveille with a host-level `ports:` mapping unless Reveille is
-not being routed through Traefik or you are intentionally debugging from the
-Docker host. If you need direct host access, bind to a narrow host address
-instead of all interfaces:
-
-```yaml
-ports:
-  - "${REVEILLE_BIND_HOST:-127.0.0.1}:${REVEILLE_PORT:-8080}:8080"
-```
-
-`REVEILLE_BIND_HOST` is a Docker bind address, not an application-level
-allowlist. Use `127.0.0.1` for local-only access, a specific LAN or VPN address
-for restricted remote access, and avoid `0.0.0.0` unless broad host exposure is
-intentional.
+Do not publish Reveille with a host-level `ports:` mapping for normal
+deployments. Browser traffic should reach Reveille only through Traefik's
+`/_reveille/*` route on the managed app host.
 
 ## Logging
 

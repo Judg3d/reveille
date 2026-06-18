@@ -12,6 +12,7 @@ Reveille expects one top-level `target:` map:
 target:
   convertx:
     type: stack
+    environment: homelab
     hostname: convert.example.com
     healthUrl: http://10.0.0.50:3003/healthcheck
 ```
@@ -48,6 +49,7 @@ Stack-only field:
 
 ## Validation Rules
 
+- Every entry must provide `environment`.
 - Container entries must provide `id`.
 - Stack entries must provide `healthUrl`.
 - Stack entries may omit `name`; the YAML key is used instead.
@@ -63,16 +65,19 @@ Stack-only field:
 target:
   jellyfin:
     id: jellyfin
+    environment: homelab
     hostname: jellyfin.example.com
 
   convertx:
     type: stack
+    environment: homelab
     hostname: convert.example.com
     healthUrl: http://10.0.0.50:3003/healthcheck
 
   paperless:
     type: stack
     name: paperless-prod
+    environment: homelab
     hostname: paperless.example.com
     healthUrl: http://paperless-webserver:8000/
     healthyStatus:

@@ -20,12 +20,12 @@ Dockhand connection defaults live in `reveille.yml`:
 ```yaml
 dockhand:
   baseUrl: "http://dockhand:3000"
-  environmentId: 1
   timeout: "30s"
 ```
 
 - `dockhand.baseUrl`: internal URL Reveille uses to call Dockhand
-- `dockhand.environmentId`: default Dockhand environment ID
+- `dockhand.apiToken`: optional bearer token; supports environment expansion
+  such as `${DOCKHAND_API_TOKEN}`
 - `dockhand.timeout`: HTTP client timeout for Dockhand API calls
 - `DOCKHAND_API_TOKEN`: optional bearer token from the environment
 
@@ -34,7 +34,7 @@ such as `http://dockhand:3000`.
 
 ## Authentication
 
-When `DOCKHAND_API_TOKEN` is set, Reveille sends:
+When `DOCKHAND_API_TOKEN` or `dockhand.apiToken` is set, Reveille sends:
 
 ```http
 Authorization: Bearer <token>
@@ -48,13 +48,21 @@ Accept: application/json
 
 If no token is configured, Reveille does not send an `Authorization` header.
 
-Prefer environment variables or deployment secrets for the token. Avoid putting
-tokens directly in committed config. The example Compose file passes the token
-through:
+Prefer `.env`, environment variables, or deployment secrets for the token.
+Avoid putting tokens directly in committed config. The example Compose file
+loads `.env` into the container:
 
 ```yaml
-environment:
-  DOCKHAND_API_TOKEN: ${DOCKHAND_API_TOKEN:-}
+env_file:
+  - path: .env
+    required: false
+```
+
+For non-Compose deployments, `reveille.yml` can also reference the environment:
+
+```yaml
+dockhand:
+  apiToken: "${DOCKHAND_API_TOKEN}"
 ```
 
 ## Environments
@@ -65,9 +73,7 @@ Dockhand API calls include an environment query parameter:
 ?env=<id>
 ```
 
-By default, Reveille uses `dockhand.environmentId`.
-
-A target can override the default environment:
+Each target must define the Dockhand environment it belongs to:
 
 ```yaml
 target:
@@ -94,11 +100,13 @@ Container targets are the default target type.
 target:
   jellyfin:
     id: jellyfin
+    environment: homelab
     hostname: jellyfin.example.com
 ```
 
-Container targets require `id`. The configured `id` can be a Docker container
-ID, an ID prefix, a container name, or a name listed by Dockhand.
+Container targets require `id` and `environment`. The configured `id` can be a
+Docker container ID, an ID prefix, a container name, or a name listed by
+Dockhand.
 
 Before starting, stopping, or checking a container, Reveille lists containers
 from Dockhand and resolves the configured value to the container ID Dockhand
@@ -126,6 +134,7 @@ target:
   paperless:
     type: stack
     name: paperless
+    environment: homelab
     hostname: paperless.example.com
     healthUrl: http://paperless-webserver:8000/
 ```
@@ -134,6 +143,7 @@ Stack targets require:
 
 - `type: stack`
 - `name`
+- `environment`
 - `healthUrl`
 
 Stacks must define `healthUrl` because a stack can contain multiple containers.

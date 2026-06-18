@@ -34,7 +34,6 @@ log:
 
 dockhand:
   baseUrl: "http://dockhand:3000"
-  environmentId: 1
   timeout: "30s"
 
 defaults:
@@ -88,18 +87,17 @@ Recommended use:
 ```yaml
 dockhand:
   baseUrl: "http://dockhand:3000"
-  environmentId: 1
   timeout: "30s"
 ```
 
 - `dockhand.baseUrl`: Dockhand API base URL
-- `dockhand.environmentId`: default Dockhand environment used when a target
-  entry does not override `environment`
+- `dockhand.apiToken`: optional Dockhand bearer token; supports environment
+  expansion such as `${DOCKHAND_API_TOKEN}`
 - `dockhand.timeout`: HTTP timeout for Dockhand API calls
 - `DOCKHAND_API_TOKEN`: optional bearer token provided through the environment
 
-Use `target.<name>.environment` in the host file when a specific target needs a
-different Dockhand environment than the default.
+Set `target.<name>.environment` in each host file. Reveille does not use a
+global Dockhand environment fallback.
 
 ## Defaults
 
@@ -128,7 +126,7 @@ Durations use Go duration syntax such as `30m`, `1h`, `2h`, or `4h3m`.
 ## How It Relates To Host Files
 
 - `reveille.yml` defines service-wide defaults
-- `target.<name>.environment` overrides the default Dockhand environment for a
-  specific host entry
+- `target.<name>.environment` defines the Dockhand environment for a specific
+  host entry
 - `lease:` and `routing:` blocks inside a host file override the global
   defaults for that host entry only
