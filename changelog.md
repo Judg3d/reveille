@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-06-18
+
+- Added HMAC-signed wait tokens and origin validation for wait-page control
+  requests, so lease, stop, and status actions must come from a valid Reveille
+  wait-page session.
+- Added `failClosedUnknownHosts` support so unknown Traefik forward-auth hosts
+  can fail closed with `404` instead of being allowed through by default.
+- Hardened wait-flow redirects, health checks, and request handling by using
+  relative wait URLs, validating `healthUrl` values at config load, and limiting
+  JSON lease request bodies to 1 MiB.
+- Removed unused lease state and added coverage for token handling, origin
+  rejection, fail-closed host behavior, JSON body limits, health URL validation,
+  relative redirects, and lease close cancellation.
+- Removed the global Dockhand `environmentId` fallback; each target now requires
+  its own `environment` so container starts are explicit per target.
+- Updated Compose examples to use optional `.env` loading, expose Reveille only
+  on the Docker network for Traefik, and remove direct host-port publishing
+  guidance from the public examples.
+- Swapped public Compose examples to a GHCR image placeholder and scrubbed
+  private registry/domain examples from the repository history before public
+  release.
+- Updated public docs and Compose examples to reference
+  `https://github.com/Judg3d/reveille` and `ghcr.io/judg3d/reveille`.
+- Added GitHub Actions CI for Go tests and GHCR container image builds.
+- Removed wait-page static asset cache busting now that the backend/template
+  contract has stabilized, and removed the related documentation.
+
 ## 2026-06-17
 
 - Split Traefik documentation into `docs/traefik/get-started.md` and
