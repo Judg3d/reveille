@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Starting {{.Host}}</title>
-  <link rel="stylesheet" href="{{.PublicPath}}/static/wait.css?v={{.AssetVersion}}">
+  <link rel="stylesheet" href="{{.PublicPath}}/static/wait.css">
 </head>
 <body>
   <main class="shell" data-host="{{.Host}}">
@@ -79,6 +79,6 @@
     </section>
   </main>
   <script id="reveille-config" type="application/json">{{.ConfigJSON}}</script>
-  <script src="{{.PublicPath}}/static/wait.js?v={{.AssetVersion}}"></script>
+  <script src="{{.PublicPath}}/static/wait.js"></script>
 </body>
 </html>

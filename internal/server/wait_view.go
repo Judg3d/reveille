@@ -20,12 +20,9 @@ type waitView struct {
 	ReturnTo     string
 	Token        string
 	ConfigJSON   template.JS
-	AssetVersion string
 	LeaseDefault string
 	LeaseOptions []config.LeaseDuration
 }
-
-const waitAssetVersion = "20260617-2"
 
 func parseTemplates() *template.Template {
 	return template.Must(template.ParseFS(assets, "templates/*.html"))
@@ -73,7 +70,6 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 		ReturnTo:     returnTo,
 		Token:        requestToken(r),
 		ConfigJSON:   template.JS(cfgJSON),
-		AssetVersion: waitAssetVersion,
 		LeaseDefault: host.Lease.Default.Label,
 		LeaseOptions: host.Lease.Options,
 	}
