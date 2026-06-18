@@ -26,6 +26,8 @@
 - Added GitHub Actions CI for Go tests and GHCR container image builds.
 - Removed wait-page static asset cache busting now that the backend/template
   contract has stabilized, and removed the related documentation.
+- Fixed wait-page redirects to use the public managed host instead of letting
+  Traefik/Safari resolve the wait URL to the internal `reveille:8080` service.
 
 ## 2026-06-17
 
