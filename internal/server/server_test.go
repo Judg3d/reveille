@@ -33,7 +33,7 @@ func TestSanitizeReturnToBlocksOpenRedirects(t *testing.T) {
 	}
 }
 
-func TestWaitURLIgnoresForwardedPublicURL(t *testing.T) {
+func TestWaitURLUsesForwardedProtoAndTargetHost(t *testing.T) {
 	s := &Server{
 		deps: Dependencies{
 			Config: config.Config{
@@ -45,10 +45,10 @@ func TestWaitURLIgnoresForwardedPublicURL(t *testing.T) {
 	r.Header.Set("X-Forwarded-Host", "pdf.example.com")
 	r.Header.Set("X-Forwarded-Proto", "https")
 
-	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "", "", "/_reveille/wait", "pdf.example.com", "/")
+	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
 }
 
-func TestWaitURLUsesRelativePath(t *testing.T) {
+func TestWaitURLDefaultsToHTTPSPublicHost(t *testing.T) {
 	s := &Server{
 		deps: Dependencies{
 			Config: config.Config{
@@ -59,7 +59,7 @@ func TestWaitURLUsesRelativePath(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
 	r.Host = ""
 
-	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "", "", "/_reveille/wait", "pdf.example.com", "/")
+	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
 }
 
 func TestWaitURLWithRootPublicPath(t *testing.T) {
@@ -73,7 +73,7 @@ func TestWaitURLWithRootPublicPath(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
 	r.Host = ""
 
-	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "", "", "/wait", "pdf.example.com", "/")
+	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/wait", "pdf.example.com", "/")
 }
 
 func TestForwardAuthAllowsUnknownHostByDefault(t *testing.T) {

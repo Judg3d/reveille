@@ -29,7 +29,22 @@ func (s *Server) waitURL(r *http.Request, host, returnTo string) string {
 	} else {
 		s.deps.Logger.Errorf("sign wait token for %s: %v", host, err)
 	}
-	return public + "/wait?" + q.Encode()
+	return waitOrigin(r, host) + public + "/wait?" + q.Encode()
+}
+
+func waitOrigin(r *http.Request, host string) string {
+	proto := firstHeaderValue(r.Header.Get("X-Forwarded-Proto"))
+	if proto == "" {
+		if r.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "https"
+		}
+	}
+	if proto != "http" && proto != "https" {
+		proto = "https"
+	}
+	return proto + "://" + strings.ToLower(strings.TrimSpace(host))
 }
 
 func publicPath(raw string) string {
