@@ -7,14 +7,11 @@ services:
     container_name: reveille
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     # Use expose when Reveille shares a Docker network with Traefik.
     expose:
       - "8080"
-    # If Reveille is not used through Traefik, publish it only on a specific
-    # host interface. Defaults in .env.example bind to localhost.
-    #ports:
-    #  - "${REVEILLE_BIND_HOST:-127.0.0.1}:${REVEILLE_PORT:-8080}:8080"
     volumes:
       - ./reveille.yml:/etc/reveille/reveille.yml:ro
       - ./targets:/etc/reveille/hosts:ro # DO NOT CHANGE INTERNAL MOUNT

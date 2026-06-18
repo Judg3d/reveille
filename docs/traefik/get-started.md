@@ -45,7 +45,7 @@ If Reveille runs in Docker with Traefik, add labels to the Reveille service:
 ```yaml
 services:
   reveille:
-    image: your-registry/reveille:latest
+    image: ghcr.io/judg3d/reveille:latest
     expose:
       - "8080"
     labels:

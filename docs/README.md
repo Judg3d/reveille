@@ -2,6 +2,8 @@
 
 Start here when wiring or operating Reveille.
 
+Source repository: https://github.com/Judg3d/reveille
+
 ## Setup
 
 - [Traefik quick start](traefik/get-started.md)

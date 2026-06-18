@@ -75,7 +75,7 @@ priority: 100000
 ```yaml
 services:
   reveille:
-    image: your-registry/reveille:latest
+    image: ghcr.io/judg3d/reveille:latest
     expose:
       - "8080"
     labels:
