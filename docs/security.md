@@ -148,8 +148,9 @@ Reveille uses forwarded headers from Traefik:
 Reveille sanitizes `returnTo` so redirects stay on local paths. Empty, absolute,
 protocol-relative, invalid, or non-`/` paths become `/`.
 
-Wait redirects use a relative `Location` path instead of rebuilding an absolute
-URL from forwarded host and proto headers.
+Wait redirects use the trusted forwarded proto and managed target hostname to
+build a public `Location` URL. They do not use the internal Reveille service
+name.
 
 Reveille also signs each wait redirect with a 24-hour token. The token is
 bound to the managed host and sanitized return path, and wait/status/lease/stop

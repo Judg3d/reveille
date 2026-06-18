@@ -100,11 +100,12 @@ Responses:
 When Reveille redirects, the `Location` header points to:
 
 ```text
-/_reveille/wait?host=app.example.com&returnTo=/docs&token=<wait-token>
+https://app.example.com/_reveille/wait?host=app.example.com&returnTo=/docs&token=<wait-token>
 ```
 
-The wait redirect is relative, so the browser stays on the same public app
-origin that made the original request.
+The wait redirect uses the public managed app origin from the trusted Traefik
+forwarded headers, so the browser does not receive the internal Reveille service
+name.
 
 The wait token is signed by Reveille, expires after 24 hours, and is bound to
 the managed host and sanitized return path. Wait, status, lease, and stop routes

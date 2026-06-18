@@ -145,7 +145,7 @@ Likely causes:
 - the app router hostname does not match the Reveille target `hostname`
 - host-level `routing.returnToHeader` points at the wrong header
 
-Reveille now returns a relative wait-page redirect. It still uses
+Reveille returns a wait-page redirect on the public managed host. It uses
 `routing.returnToHeader`, or `X-Forwarded-Uri` by default, to preserve the
 original path as `returnTo`.
 
@@ -159,8 +159,8 @@ docker exec traefik wget -S -O- \
   http://reveille:8080/api/traefik/forward-auth
 ```
 
-If redirects point at `http://reveille:8080/...`, the running container is using
-an older Reveille build.
+If redirects point at `http://reveille:8080/...` or `reveille:8080/...`, the
+running container is using a broken redirect build.
 
 Related docs:
 
