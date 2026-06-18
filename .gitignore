@@ -10,6 +10,7 @@ reveille.yml
 
 # Local runtime compose file; keep compose.example.yml tracked.
 compose.yml
+compose.test.yml
 
 # Host configs may contain private hostnames/container names.
 targets/
