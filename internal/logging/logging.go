@@ -1,8 +1,9 @@
 package logging
 
 import (
+	"context"
 	"fmt"
-	stdlog "log"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -17,18 +18,34 @@ const (
 )
 
 type Logger struct {
-	level  Level
-	stdlib *stdlog.Logger
+	level Level
+	slog  *slog.Logger
 }
 
 func New(level string) (*Logger, error) {
+	return NewWithFormat(level, "text")
+}
+
+// NewWithFormat builds a logger with the given level and output format
+// ("text" or "json").
+func NewWithFormat(level, format string) (*Logger, error) {
 	parsed, err := ParseLevel(level)
 	if err != nil {
 		return nil, err
 	}
+	opts := &slog.HandlerOptions{Level: slogLevel(parsed)}
+	var handler slog.Handler
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "", "text":
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	case "json":
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	default:
+		return nil, fmt.Errorf("invalid log format %q", format)
+	}
 	return &Logger{
-		level:  parsed,
-		stdlib: stdlog.New(os.Stdout, "", stdlog.LstdFlags),
+		level: parsed,
+		slog:  slog.New(handler),
 	}, nil
 }
 
@@ -74,28 +91,41 @@ func NormalizeLevel(value string) (string, error) {
 	}
 }
 
+func slogLevel(level Level) slog.Level {
+	switch level {
+	case LevelDebug:
+		return slog.LevelDebug
+	case LevelWarn:
+		return slog.LevelWarn
+	case LevelError:
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
 func (l *Logger) Debugf(format string, args ...any) {
-	l.logf(LevelDebug, "DEBUG", format, args...)
+	l.logf(LevelDebug, format, args...)
 }
 
 func (l *Logger) Infof(format string, args ...any) {
-	l.logf(LevelInfo, "INFO", format, args...)
+	l.logf(LevelInfo, format, args...)
 }
 
 func (l *Logger) Warnf(format string, args ...any) {
-	l.logf(LevelWarn, "WARN", format, args...)
+	l.logf(LevelWarn, format, args...)
 }
 
 func (l *Logger) Errorf(format string, args ...any) {
-	l.logf(LevelError, "ERROR", format, args...)
+	l.logf(LevelError, format, args...)
 }
 
-func (l *Logger) logf(level Level, label, format string, args ...any) {
-	if l == nil || l.stdlib == nil {
+func (l *Logger) logf(level Level, format string, args ...any) {
+	if l == nil || l.slog == nil {
 		return
 	}
 	if level < l.level {
 		return
 	}
-	l.stdlib.Printf("[%s] %s", label, fmt.Sprintf(format, args...))
+	l.slog.Log(context.Background(), slogLevel(level), fmt.Sprintf(format, args...))
 }
