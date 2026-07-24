@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -16,11 +17,28 @@ import (
 )
 
 type Client struct {
-	baseURL string
-	token   string
-	client  *http.Client
-	mu      sync.Mutex
-	envs    map[string]int
+	baseURL    string
+	token      string
+	client     *http.Client
+	mu         sync.Mutex
+	envs       map[string]int
+	containers map[string]string
+}
+
+type apiError struct {
+	Method     string
+	Path       string
+	Status     string
+	StatusCode int
+}
+
+func (e *apiError) Error() string {
+	return fmt.Sprintf("%s %s: dockhand returned %s", e.Method, e.Path, e.Status)
+}
+
+func isNotFound(err error) bool {
+	var apiErr *apiError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
 type Container struct {
@@ -39,41 +57,63 @@ type Environment struct {
 
 func NewClient(baseURL, token string, timeout time.Duration) *Client {
 	return &Client{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		token:   token,
-		client:  &http.Client{Timeout: timeout},
-		envs:    map[string]int{},
+		baseURL:    strings.TrimRight(baseURL, "/"),
+		token:      token,
+		client:     &http.Client{Timeout: timeout},
+		envs:       map[string]int{},
+		containers: map[string]string{},
 	}
 }
 
+func (c *Client) Name() string { return "dockhand" }
+
 func (c *Client) Start(ctx context.Context, target hosts.Target) error {
-	envID, err := c.envIDFor(ctx, target)
-	if err != nil {
-		return err
-	}
-	if target.Type == "stack" {
-		return c.do(ctx, http.MethodPost, "/api/stacks/"+url.PathEscape(target.Name)+"/start", envID, nil, nil)
-	}
-	id, err := c.resolveContainer(ctx, target.ID, envID)
-	if err != nil {
-		return err
-	}
-	return c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/start", envID, nil, nil)
+	return c.containerAction(ctx, target, "start")
 }
 
 func (c *Client) Stop(ctx context.Context, target hosts.Target) error {
+	return c.containerAction(ctx, target, "stop")
+}
+
+func (c *Client) containerAction(ctx context.Context, target hosts.Target, action string) error {
 	envID, err := c.envIDFor(ctx, target)
 	if err != nil {
 		return err
 	}
 	if target.Type == "stack" {
-		return c.do(ctx, http.MethodPost, "/api/stacks/"+url.PathEscape(target.Name)+"/stop", envID, nil, nil)
+		return c.do(ctx, http.MethodPost, "/api/stacks/"+url.PathEscape(target.Name)+"/"+action, envID, nil, nil)
 	}
 	id, err := c.resolveContainer(ctx, target.ID, envID)
 	if err != nil {
 		return err
 	}
-	return c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/stop", envID, nil, nil)
+	err = c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/"+action, envID, nil, nil)
+	if !isNotFound(err) {
+		return err
+	}
+	// A 404 usually means the cached container ID went stale after a
+	// recreate; drop the caches and retry once with fresh lookups.
+	c.invalidate(target, envID)
+	envID, retryErr := c.envIDFor(ctx, target)
+	if retryErr != nil {
+		return retryErr
+	}
+	id, retryErr = c.resolveContainer(ctx, target.ID, envID)
+	if retryErr != nil {
+		return retryErr
+	}
+	return c.do(ctx, http.MethodPost, "/api/containers/"+url.PathEscape(id)+"/"+action, envID, nil, nil)
+}
+
+func (c *Client) invalidate(target hosts.Target, envID int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.envs, strings.ToLower(target.Environment))
+	delete(c.containers, containerCacheKey(target.ID, envID))
+}
+
+func containerCacheKey(configured string, envID int) string {
+	return fmt.Sprintf("%d|%s", envID, configured)
 }
 
 func (c *Client) Healthy(ctx context.Context, target hosts.Target) (bool, error) {
@@ -110,10 +150,20 @@ func (c *Client) Containers(ctx context.Context, envID int) ([]Container, error)
 }
 
 func (c *Client) resolveContainer(ctx context.Context, configured string, envID int) (string, error) {
+	key := containerCacheKey(configured, envID)
+	c.mu.Lock()
+	if id, ok := c.containers[key]; ok {
+		c.mu.Unlock()
+		return id, nil
+	}
+	c.mu.Unlock()
 	container, ok, err := c.findContainer(ctx, configured, envID)
 	if err != nil || !ok {
 		return configured, err
 	}
+	c.mu.Lock()
+	c.containers[key] = container.ID
+	c.mu.Unlock()
 	return container.ID, nil
 }
 
@@ -201,7 +251,7 @@ func (c *Client) do(ctx context.Context, method, path string, envID int, query u
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return fmt.Errorf("%s %s: dockhand returned %s", method, path, res.Status)
+		return &apiError{Method: method, Path: path, Status: res.Status, StatusCode: res.StatusCode}
 	}
 	if out != nil {
 		return json.NewDecoder(res.Body).Decode(out)

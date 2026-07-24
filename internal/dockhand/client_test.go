@@ -145,3 +145,61 @@ func response(status int, body []byte) *http.Response {
 		Header:     make(http.Header),
 	}
 }
+
+func TestContainerIDIsCachedAcrossCalls(t *testing.T) {
+	var listCalls int
+	client := NewClient("http://dockhand.test", "", time.Second)
+	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/containers":
+			listCalls++
+			body, _ := json.Marshal([]Container{{ID: "abc123", Names: []string{"/jellyfin"}}})
+			return response(http.StatusOK, body), nil
+		case "/api/containers/abc123/start", "/api/containers/abc123/stop":
+			return response(http.StatusNoContent, nil), nil
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return response(http.StatusInternalServerError, nil), nil
+	})
+
+	target := hosts.Target{Type: "container", ID: "jellyfin", Environment: "3"}
+	if err := client.Start(context.Background(), target); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Stop(context.Background(), target); err != nil {
+		t.Fatal(err)
+	}
+	if listCalls != 1 {
+		t.Fatalf("container list calls = %d, want 1 (cached)", listCalls)
+	}
+}
+
+func TestStaleContainerIDRetriesAfterNotFound(t *testing.T) {
+	ids := []string{"old111", "new222"}
+	var listCalls int
+	client := NewClient("http://dockhand.test", "", time.Second)
+	client.client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.URL.Path {
+		case "/api/containers":
+			body, _ := json.Marshal([]Container{{ID: ids[listCalls], Names: []string{"/jellyfin"}}})
+			if listCalls < len(ids)-1 {
+				listCalls++
+			}
+			return response(http.StatusOK, body), nil
+		case "/api/containers/old111/start":
+			// The cached ID went stale after a container recreate.
+			return response(http.StatusNotFound, nil), nil
+		case "/api/containers/new222/start":
+			return response(http.StatusNoContent, nil), nil
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+		return response(http.StatusInternalServerError, nil), nil
+	})
+
+	target := hosts.Target{Type: "container", ID: "jellyfin", Environment: "3"}
+	if err := client.Start(context.Background(), target); err != nil {
+		t.Fatalf("start with stale cache: %v", err)
+	}
+}
