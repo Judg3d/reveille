@@ -43,6 +43,7 @@ type Target struct {
 	Hostname      string `yaml:"hostname"`
 	HealthURL     string `yaml:"healthUrl"`
 	HealthyStatus []int  `yaml:"healthyStatus"`
+	StartMode     string `yaml:"startMode"`
 }
 
 type Lease struct {
@@ -61,6 +62,13 @@ type Store struct {
 	byHost   map[string]Host
 	state    string
 	logger   *logging.Logger
+	onChange func()
+}
+
+// SetOnChange registers a callback invoked after a reload changed the host
+// set. Call before Watch starts.
+func (s *Store) SetOnChange(fn func()) {
+	s.onChange = fn
 }
 
 func LoadDir(dir string, defaults config.Defaults, logger ...*logging.Logger) (*Store, error) {
@@ -136,6 +144,9 @@ func LoadFile(path string, defaults config.Defaults) ([]Host, error) {
 		if h.Target.Type == "" {
 			h.Target.Type = "container"
 		}
+		if h.Target.StartMode == "" {
+			h.Target.StartMode = "auto"
+		}
 		if len(h.Target.HealthyStatus) == 0 {
 			h.Target.HealthyStatus = []int{200}
 		}
@@ -205,6 +216,18 @@ func (s *Store) Lookup(host string) (Host, bool) {
 	return h, ok
 }
 
+// All returns every configured host sorted by hostname.
+func (s *Store) All() []Host {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]Host, 0, len(s.byHost))
+	for _, host := range s.byHost {
+		out = append(out, host)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Host < out[j].Host })
+	return out
+}
+
 func (s *Store) Reload() (bool, int, error) {
 	loaded, err := loadDir(s.dir, s.defaults)
 	if err != nil {
@@ -239,6 +262,9 @@ func (s *Store) Watch(ctx context.Context, interval time.Duration, onError func(
 			}
 			if changed {
 				s.logger.Infof("reloaded %d host entries from %s", count, s.dir)
+				if s.onChange != nil {
+					s.onChange()
+				}
 			}
 		}
 	}
@@ -269,6 +295,7 @@ func snapshotState(byHost map[string]Host) string {
 			host.Target.Environment,
 			host.Target.Hostname,
 			host.Target.HealthURL,
+			host.Target.StartMode,
 			strconv.Itoa(len(host.Lease.Options)),
 			host.Lease.Default.Label,
 			host.Routing.ReturnToHeader,
@@ -287,6 +314,9 @@ func validateHost(path string, index int, h Host) (Host, error) {
 	}
 	if h.Target.Type != "container" && h.Target.Type != "stack" {
 		return h, fmt.Errorf("%s target.type must be container or stack", label)
+	}
+	if h.Target.StartMode != "auto" && h.Target.StartMode != "manual" {
+		return h, fmt.Errorf("%s target.startMode must be auto or manual", label)
 	}
 	if h.Target.Environment == "" {
 		return h, fmt.Errorf("%s target.environment is required", label)
