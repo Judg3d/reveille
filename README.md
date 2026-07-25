@@ -9,6 +9,8 @@ Reveille is currently tied to both Traefik and Dockhand. Traefik provides the
 `forwardAuth` request flow and browser routing, and Dockhand provides the
 container/stack start and stop API.
 
+Is vibecoded.
+
 Managed targets should be created ahead of time in a stopped state. For Compose
 deployments, create the target containers with `docker compose up -d --no-start`
 or an equivalent Dockhand workflow so Reveille can start them on demand.
