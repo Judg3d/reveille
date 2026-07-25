@@ -12,11 +12,17 @@ services:
     # host interface. Defaults in .env.example bind to localhost.
     #ports:
     #  - "${REVEILLE_BIND_HOST:-127.0.0.1}:${REVEILLE_PORT:-8080}:8080"
+    # Admin dashboard (admin.listen: ":8081" in reveille.yml). Keep it off
+    # public interfaces; bind to localhost or a trusted LAN address only.
+    #  - "127.0.0.1:8081:8081"
     volumes:
       - ./reveille.yml:/etc/reveille/reveille.yml:ro
       - ./targets:/etc/reveille/hosts:ro # DO NOT CHANGE INTERNAL MOUNT
       # Lease state so timers survive restarts and container recreates.
       - reveille-state:/var/lib/reveille
+      # Only needed for provider: "docker" (direct Docker Engine access
+      # instead of Dockhand). Read-only is enough for start/stop/inspect.
+      #- /var/run/docker.sock:/var/run/docker.sock:ro
 
 volumes:
   reveille-state:
