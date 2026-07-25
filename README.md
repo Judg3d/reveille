@@ -21,11 +21,19 @@ Browser -> Traefik app router -> Reveille forwardAuth -> Dockhand -> Target
 ## What It Does
 
 - Integrates with Traefik through `forwardAuth`.
-- Starts and stops targets through the Dockhand API.
+- Starts and stops targets through the Dockhand API, or directly through the
+  Docker socket (`provider: docker`).
 - Shows a browser wait page with lease/timer selection.
 - Polls readiness before redirecting back to the requested app.
-- Stops finite leases automatically when their timer expires.
-- Loads target definitions from YAML files.
+- Stops finite leases automatically when their timer expires, including
+  sliding `idle:<duration>` leases that follow real traffic.
+- Arms a safety-net stop timer for wakes that never pick a lease (crawlers,
+  closed tabs), and persists leases across restarts.
+- Optional operator dashboard (`admin.listen`) with per-target start/stop and
+  timer controls.
+- Optional notifications (Gotify, Telegram, ntfy, webhook) on wakes, stops,
+  and failed stops.
+- Loads target definitions from YAML files and reloads them on change.
 
 ## Minimal Compose
 

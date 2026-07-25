@@ -1,5 +1,72 @@
 # Changelog
 
+## 2026-07-24
+
+Correctness and safety:
+
+- Added a provisional "orphan grace" lease (`defaults.orphanGrace`, default
+  `10m`) armed whenever forward-auth starts a target, so wakes that never
+  pick a timer (crawlers, closed tabs) no longer leave targets running
+  forever. A user-selected timer replaces it.
+- Added lease persistence (`server.stateFile`, default
+  `/var/lib/reveille/state.json`): active leases survive restarts, timers are
+  re-armed on boot, and leases already expired at boot stop their target
+  immediately. The container image prepares `/var/lib/reveille`.
+- Added a short-TTL health cache (`defaults.healthCacheTTL`, default `3s`)
+  with request deduplication, so request bursts share one provider round-trip
+  instead of issuing one container-list call per proxied request. Start calls
+  are deduplicated the same way, and Dockhand container IDs are cached with a
+  stale-ID retry after 404.
+- Added HTTP server read/write/idle timeouts.
+
+Security:
+
+- Added `server.tokenSecret` so wait tokens survive restarts (previously the
+  signing key regenerated every start).
+- Wait sessions now also live in an `HttpOnly` `SameSite=Lax` cookie, so the
+  token no longer has to travel in URLs after the first redirect.
+- Added strict security headers (CSP, `Referrer-Policy: no-referrer`,
+  `nosniff`, frame blocking) on all responses.
+- Added per-host rate limiting on lease/stop requests (429 beyond burst) and
+  on forward-auth start attempts.
+- Added `server.forwardAuthSecret`: when set, forward-auth requires the
+  `X-Reveille-Auth` header, so other containers on the shared network cannot
+  trigger starts.
+- Health-check errors on the public wait page are now generic by default;
+  raw diagnostics require `server.exposeHealthDetail: true`.
+- Hardened CI (scoped `packages: write`, govulncheck, trivy image scan),
+  added a Dockerfile `HEALTHCHECK`, and added an MIT `LICENSE`.
+
+Features:
+
+- Added idle leases (`idle:20m` style options): the expiry slides forward
+  while the app still receives requests and the target stops after the idle
+  window passes without traffic.
+- Added `target.<name>.startMode: manual` so forward-auth sends visitors to
+  the wait page without starting the target; the start happens when a timer
+  is chosen. Creating a lease now also starts a stopped target in both modes.
+- Added an operator dashboard on a separate listener (`admin.listen`,
+  optional `admin.token`) listing all targets with health, lease state, and
+  start/stop/timer controls, plus a JSON API.
+- Added a provider abstraction with a direct Docker Engine provider
+  (`provider: docker`, container targets only) alongside Dockhand.
+- Added notifications (Gotify, Telegram, ntfy, generic webhook) for wake,
+  timer-expiry stop, manual stop, and failed stops, with per-event filtering
+  (`notify.events`).
+- Added an "Extend Timer" button to the wait page countdown view.
+- Added `reveille validate` (config + host files) and `reveille -version`.
+- Added `log.format: json`, configurable host reload interval
+  (`server.hostsReloadInterval`), and lease snapshots now refresh after host
+  reloads.
+
+Internal:
+
+- Logging is now backed by `log/slog`.
+- Health checks use a dedicated HTTP client that no longer follows
+  redirects; a redirecting health endpoint counts as its raw status code.
+- Lease selection matches canonical values (e.g. `0.5h` matches the `30m`
+  option), not just display labels.
+
 ## 2026-06-18
 
 - Added HMAC-signed wait tokens and origin validation for wait-page control

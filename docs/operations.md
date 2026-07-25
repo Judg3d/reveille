@@ -251,6 +251,54 @@ After an upgrade, retest:
 3. timer save through `POST /_reveille/wait`
 4. one managed app domain in a browser
 
+## Admin Dashboard
+
+Enable the operator dashboard on a separate internal listener:
+
+```yaml
+admin:
+  listen: ":8081"
+  token: "${REVEILLE_ADMIN_TOKEN}"
+```
+
+Open `http://<reveille-host>:8081/?token=<token>` on the internal network.
+The dashboard lists every managed target with health, active lease, and
+start/stop/timer controls, and refreshes automatically. The same API is
+scriptable:
+
+```sh
+curl -H "X-Reveille-Admin-Token: $TOKEN" http://reveille:8081/api/hosts
+curl -X POST -H "X-Reveille-Admin-Token: $TOKEN" http://reveille:8081/api/hosts/app.example.com/start
+curl -X POST -H "X-Reveille-Admin-Token: $TOKEN" http://reveille:8081/api/hosts/app.example.com/stop
+curl -X POST -H "X-Reveille-Admin-Token: $TOKEN" -d lease=1h http://reveille:8081/api/hosts/app.example.com/lease
+```
+
+Do not expose the admin listener through Traefik or on a public interface.
+
+## Validate Config
+
+`reveille validate` loads the runtime config and every host file, then exits
+non-zero on the first error. Useful before restarts and in CI:
+
+```sh
+reveille validate -config reveille.yml -hosts targets
+```
+
+## Version
+
+```sh
+reveille -version
+```
+
+Container images bake the release tag in at build time.
+
+## Notifications
+
+Configure the `notify:` block (see
+[reveille-yml.md](reveille-yml.md#notify)) to receive Gotify, Telegram,
+ntfy, or webhook messages on wake, timer-expiry stop, manual stop, and —
+most importantly — failed stops, which otherwise only reach the logs.
+
 ## Related Docs
 
 - Runtime flow: [runtime-flow.md](runtime-flow.md)

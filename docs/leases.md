@@ -165,6 +165,46 @@ On success, Reveille returns:
 {"status":"stopped"}
 ```
 
+## Provisional Leases
+
+When a target is started through forward-auth and nobody picks a timer on the
+wait page (crawlers, bots, closed tabs), Reveille arms a **provisional lease**
+using `defaults.orphanGrace` (default `10m`). It behaves like a normal finite
+lease — the target stops when it expires — but the wait page keeps showing
+timer selection until a real timer is chosen. A user-selected lease replaces
+the provisional one.
+
+This guarantees a started target always has a stop timer armed.
+
+## Idle Leases
+
+Lease options of the form `idle:<duration>` create sliding timers. While the
+managed host keeps receiving requests through the forward-auth middleware, the
+expiry keeps moving to `last activity + idle window`. Once the app goes quiet
+for the whole window, the target stops.
+
+```yaml
+lease:
+  options:
+    - "1h"
+    - "idle:20m"
+    - "never"
+```
+
+Idle leases suit apps with unpredictable session length: the app stays up as
+long as it is used and stops shortly after everyone leaves.
+
+## Persistence
+
+Active leases are persisted to `server.stateFile` (default
+`/var/lib/reveille/state.json`) on every change. On startup Reveille restores
+them and re-arms the timers, so a restart or crash does not leave running
+targets unmanaged. Leases already expired at startup trigger an immediate
+stop.
+
+Mount a volume at `/var/lib/reveille` to keep state across container
+recreates. Set `stateFile: ""` to disable persistence.
+
 ## Lease Config
 
 Global defaults live in `reveille.yml`:

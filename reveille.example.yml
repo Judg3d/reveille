@@ -20,10 +20,35 @@ server:
   # When true, unknown forward-auth hosts return 404 so host typos fail closed.
   failClosedUnknownHosts: false
 
+  # Secret used to sign wait-page session tokens. When unset, a random key is
+  # generated at startup and in-flight wait sessions break on restart.
+  # Prefer setting it via the environment.
+  #tokenSecret: "${REVEILLE_TOKEN_SECRET}"
+
+  # Optional shared secret for the forward-auth endpoint. When set, Traefik
+  # must send it as the X-Reveille-Auth header (customRequestHeaders on the
+  # reveille@file middleware); other containers on the shared network cannot
+  # trigger starts.
+  #forwardAuthSecret: "${REVEILLE_FORWARD_AUTH_SECRET}"
+
+  # When true, raw health-check errors (which can include internal URLs) are
+  # shown on the public wait page. Default false shows generic messages.
+  exposeHealthDetail: false
+
+  # Lease state file so timers survive restarts. Set to "" to disable
+  # persistence. The container image prepares /var/lib/reveille.
+  stateFile: "/var/lib/reveille/state.json"
+
+  # How often target files are re-read from the hosts directory.
+  hostsReloadInterval: "5s"
+
 log:
   # Supported levels: debug, info, warn, warning, error.
   # Use debug while wiring routes and health checks; use info for normal use.
   level: "info"
+
+  # Output format: "text" (default) or "json".
+  #format: "text"
 
 dockhand:
   # Internal URL Reveille uses to call Dockhand.
@@ -48,14 +73,17 @@ defaults:
   # by a finite lease.
   lease: "2h"
 
-  # Lease choices shown to users on the wait page. Add, remove, or reorder these
-  # values freely. Each value must be a valid Go duration or "never".
+  # Lease choices shown to users on the wait page. Add, remove, or reorder
+  # these values freely. Each value must be a valid Go duration, "never", or
+  # "idle:<duration>" for an idle timer that keeps sliding forward while the
+  # app still receives requests and stops it after the idle window passes.
   leaseOptions:
     - "30m"
     - "1h"
     - "2h"
     - "4h"
     - "never"
+  # - "idle:20m"
 
   # Maximum time allowed for a start operation.
   startTimeout: "3m"
@@ -65,3 +93,45 @@ defaults:
 
   # How often the wait page polls readiness while a timer is active.
   pollInterval: "5s"
+
+  # Short-lived cache for target health checks. Every request through the
+  # forward-auth middleware needs a health answer; the cache keeps request
+  # bursts from hammering the provider.
+  healthCacheTTL: "3s"
+
+  # Safety-net stop timer armed when a target is started but nobody picks a
+  # timer on the wait page (crawlers, closed tabs). A user-selected timer
+  # replaces it.
+  orphanGrace: "10m"
+
+# Container lifecycle provider: "dockhand" (default) or "docker".
+# The docker provider talks to the Docker Engine API directly over the
+# socket below and supports container targets only.
+#provider: "dockhand"
+#docker:
+#  socket: "/var/run/docker.sock"
+#  timeout: "30s"
+
+# Optional operator dashboard on a separate listener. Keep it off the public
+# network; set a token when other containers share the network.
+#admin:
+#  listen: ":8081"
+#  token: "${REVEILLE_ADMIN_TOKEN}"
+
+# Optional notifications. Delivery is best-effort and never blocks
+# start/stop operations. Omit `events` to receive every event; valid values:
+# wake, lease_expired_stop, manual_stop, stop_failed.
+#notify:
+#  events: ["stop_failed", "lease_expired_stop"]
+#  gotify:
+#    url: "https://gotify.example.com"
+#    token: "${GOTIFY_TOKEN}"
+#    priority: 5
+#  telegram:
+#    token: "${TELEGRAM_BOT_TOKEN}"
+#    chatId: "123456789"
+#  ntfy:
+#    url: "https://ntfy.sh"
+#    topic: "reveille"
+#  webhook:
+#    url: "https://example.com/hooks/reveille"

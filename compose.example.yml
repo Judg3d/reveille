@@ -15,3 +15,8 @@ services:
     volumes:
       - ./reveille.yml:/etc/reveille/reveille.yml:ro
       - ./targets:/etc/reveille/hosts:ro # DO NOT CHANGE INTERNAL MOUNT
+      # Lease state so timers survive restarts and container recreates.
+      - reveille-state:/var/lib/reveille
+
+volumes:
+  reveille-state:

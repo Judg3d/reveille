@@ -192,6 +192,25 @@ lease:
 Durations use Go duration syntax, such as `2m`, `30m`, `5h`, or `4h3m`.
 `never` means Reveille will not automatically stop the target.
 
+## Manual Start Mode
+
+By default (`startMode: auto`) any request to the managed host starts the
+target. Set `startMode: manual` to require a human: forward-auth sends the
+visitor to the wait page without starting anything, and the start happens
+when a timer is chosen there.
+
+```yaml
+target:
+  jellyfin:
+    type: container
+    id: jellyfin
+    environment: homelab
+    hostname: media.example.com
+    startMode: manual
+```
+
+Use it for targets that internet scanners keep waking.
+
 ## Routing Override
 
 Most setups should not need this. By default Reveille redirects users back to

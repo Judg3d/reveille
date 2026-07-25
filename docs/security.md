@@ -220,6 +220,96 @@ Use `log.level: "debug"` only while actively troubleshooting. Debug logs include
 status details such as readiness state, lease state, health status, and health
 errors.
 
+## Wait Session Tokens And Cookies
+
+Reveille signs each wait redirect with a 24-hour HMAC token bound to the
+managed host and sanitized return path. The wait page also stores the token in
+an `HttpOnly` cookie (`reveille_wait`, `SameSite=Lax`), so follow-up status,
+lease, and stop calls work without carrying the token in URLs.
+
+Set `server.tokenSecret` so tokens survive restarts and stay verifiable:
+
+```yaml
+server:
+  tokenSecret: "${REVEILLE_TOKEN_SECRET}"
+```
+
+Without it a random key is generated at startup and in-flight wait sessions
+break on restart.
+
+## Security Headers
+
+All Reveille responses carry a strict `Content-Security-Policy` (self-hosted
+assets only), `Referrer-Policy: no-referrer`, and
+`X-Content-Type-Options: nosniff`. The CSP also blocks framing
+(`frame-ancestors 'none'`).
+
+## Rate Limiting
+
+Mutating wait-control requests (lease create, stop) are rate limited per host
+(burst of 10, refilling 1/s) and answer `429 Too Many Requests` beyond that.
+Start operations triggered through forward-auth are deduplicated: concurrent
+requests share one provider call, and excess start attempts redirect to the
+wait page without contacting the provider.
+
+## Forward-Auth Shared Secret
+
+Any container on the shared Docker network can reach
+`http://reveille:8080/api/traefik/forward-auth`. To restrict it to Traefik,
+set a shared secret and add it to the middleware:
+
+```yaml
+server:
+  forwardAuthSecret: "${REVEILLE_FORWARD_AUTH_SECRET}"
+```
+
+```yaml
+http:
+  middlewares:
+    reveille:
+      forwardAuth:
+        address: "http://reveille:8080/api/traefik/forward-auth"
+        authRequestHeaders: []
+```
+
+Configure Traefik to add the header on the way in (for example with a
+`headers.customRequestHeaders` middleware chained before `reveille@file`):
+
+```yaml
+http:
+  middlewares:
+    reveille-secret:
+      headers:
+        customRequestHeaders:
+          X-Reveille-Auth: "<secret>"
+```
+
+Requests without the correct `X-Reveille-Auth` header are rejected with 403.
+
+## Health Error Detail
+
+By default the public wait page shows generic health messages. Raw
+health-check errors can include internal URLs and container names; enable
+them only while troubleshooting:
+
+```yaml
+server:
+  exposeHealthDetail: true
+```
+
+## Manual Start Mode
+
+`target.<name>.startMode: manual` prevents forward-auth from starting the
+target. Visitors land on the wait page and the start happens only when a
+timer is chosen there. Use it for targets that internet scanners keep waking.
+
+## Admin Dashboard
+
+When `admin.listen` is set, Reveille serves an operator dashboard on that
+listener. Do not publish it through Traefik or a host port on an untrusted
+interface. Set `admin.token` whenever other workloads share the network; the
+dashboard can start and stop every managed target.
+
 ## Checklist
 
 | Item | Why |
