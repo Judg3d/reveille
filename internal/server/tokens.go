@@ -101,5 +101,11 @@ func requestToken(r *http.Request) string {
 	if token := r.FormValue("token"); token != "" {
 		return token
 	}
-	return r.Header.Get("X-Reveille-Token")
+	if token := r.Header.Get("X-Reveille-Token"); token != "" {
+		return token
+	}
+	if cookie, err := r.Cookie(waitCookieName); err == nil {
+		return cookie.Value
+	}
+	return ""
 }

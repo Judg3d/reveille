@@ -29,7 +29,13 @@ func parseTemplates() *template.Template {
 }
 
 func staticHandler(public string) http.Handler {
-	return http.StripPrefix(public+"/static/", http.FileServer(http.FS(mustSub(assets, "static"))))
+	files := http.StripPrefix(public+"/static/", http.FileServer(http.FS(mustSub(assets, "static"))))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Modest lifetime: embedded assets carry no ETag, and a stale wait.js
+		// must not outlive a deploy by long.
+		w.Header().Set("Cache-Control", "public, max-age=600")
+		files.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +56,7 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	s.setWaitCookie(w, r, requestToken(r))
 	returnTo := token.ReturnTo
 	clientCfg := map[string]any{
 		"host":       host.Host,
@@ -58,6 +65,7 @@ func (s *Server) wait(w http.ResponseWriter, r *http.Request) {
 		"publicPath": publicPath(s.deps.Config.Server.PublicPath),
 		"waitPath":   publicPath(s.deps.Config.Server.PublicPath) + "/wait",
 		"pollMillis": int(s.deps.Config.Defaults.PollInterval / time.Millisecond),
+		"startMode":  host.Target.StartMode,
 	}
 	cfgJSON, err := json.Marshal(clientCfg)
 	if err != nil {

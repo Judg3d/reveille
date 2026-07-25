@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -45,7 +46,7 @@ func TestWaitURLUsesForwardedProtoAndTargetHost(t *testing.T) {
 	r.Header.Set("X-Forwarded-Host", "pdf.example.com")
 	r.Header.Set("X-Forwarded-Proto", "https")
 
-	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
+	assertWaitURL(t, s, s.waitURL(httptest.NewRecorder(), r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
 }
 
 func TestWaitURLDefaultsToHTTPSPublicHost(t *testing.T) {
@@ -59,7 +60,7 @@ func TestWaitURLDefaultsToHTTPSPublicHost(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
 	r.Host = ""
 
-	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
+	assertWaitURL(t, s, s.waitURL(httptest.NewRecorder(), r, "pdf.example.com", "/"), "https", "pdf.example.com", "/_reveille/wait", "pdf.example.com", "/")
 }
 
 func TestWaitURLWithRootPublicPath(t *testing.T) {
@@ -73,7 +74,7 @@ func TestWaitURLWithRootPublicPath(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/traefik/forward-auth", nil)
 	r.Host = ""
 
-	assertWaitURL(t, s, s.waitURL(r, "pdf.example.com", "/"), "https", "pdf.example.com", "/wait", "pdf.example.com", "/")
+	assertWaitURL(t, s, s.waitURL(httptest.NewRecorder(), r, "pdf.example.com", "/"), "https", "pdf.example.com", "/wait", "pdf.example.com", "/")
 }
 
 func TestForwardAuthAllowsUnknownHostByDefault(t *testing.T) {
@@ -647,9 +648,34 @@ func newTestServerWithHealthURL(t *testing.T, healthURL string) (*Server, *lease
 
 	leaseMgr := leases.NewManager(func(_ context.Context, _ hosts.Host) error { return nil })
 	return New(Dependencies{
-		Config: cfg,
-		Hosts:  store,
-		Health: health.NewChecker(http.DefaultClient),
-		Leases: leaseMgr,
+		Config:   cfg,
+		Hosts:    store,
+		Provider: &stubProvider{healthy: true},
+		Health:   health.NewChecker(http.DefaultClient),
+		Leases:   leaseMgr,
 	}), leaseMgr
+}
+
+type stubProvider struct {
+	healthy      bool
+	starts       atomic.Int64
+	stops        atomic.Int64
+	healthChecks atomic.Int64
+}
+
+func (p *stubProvider) Name() string { return "stub" }
+
+func (p *stubProvider) Start(context.Context, hosts.Target) error {
+	p.starts.Add(1)
+	return nil
+}
+
+func (p *stubProvider) Stop(context.Context, hosts.Target) error {
+	p.stops.Add(1)
+	return nil
+}
+
+func (p *stubProvider) Healthy(context.Context, hosts.Target) (bool, error) {
+	p.healthChecks.Add(1)
+	return p.healthy, nil
 }

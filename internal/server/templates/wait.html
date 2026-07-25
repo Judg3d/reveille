@@ -64,11 +64,14 @@
           </div>
         </div>
 
-        <form class="stop-form" method="post" action="{{.PublicPath}}/wait?host={{.Host}}">
-          <input type="hidden" name="action" value="stop">
-          <input type="hidden" name="token" value="{{.Token}}">
-          <button class="secondary" type="submit">Stop App</button>
-        </form>
+        <div class="poll-actions">
+          <button id="extend-button" class="secondary" type="button">Extend Timer</button>
+          <form class="stop-form" method="post" action="{{.PublicPath}}/wait?host={{.Host}}">
+            <input type="hidden" name="action" value="stop">
+            <input type="hidden" name="token" value="{{.Token}}">
+            <button class="secondary" type="submit">Stop App</button>
+          </form>
+        </div>
       </div>
 
       <noscript>

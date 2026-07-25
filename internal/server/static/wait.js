@@ -41,6 +41,26 @@
     return `reveille:${cfg.host || "unknown"}:timer-started`;
   }
 
+  function leaseLabelKey() {
+    return `reveille:${cfg.host || "unknown"}:lease-label`;
+  }
+
+  function rememberLeaseLabel(label) {
+    try {
+      if (label) window.sessionStorage.setItem(leaseLabelKey(), label);
+    } catch (_) {
+      // Session storage is a convenience only.
+    }
+  }
+
+  function storedLeaseLabel() {
+    try {
+      return window.sessionStorage.getItem(leaseLabelKey()) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
   function browserStartedTimer() {
     try {
       return window.sessionStorage.getItem(timerStartedKey()) === "true";
@@ -194,7 +214,13 @@
     if (!res.ok) {
       throw new Error("status fetch failed");
     }
-    return res.json();
+    const data = await res.json();
+    // A provisional lease is the backend's orphan-stop safety net, not a
+    // user-chosen timer; keep showing timer selection until one is picked.
+    if (data && data.provisional) {
+      data.leaseActive = false;
+    }
+    return data;
   }
 
   async function readErrorMessage(res, fallback) {
@@ -210,6 +236,7 @@
 
   function applyLease(leaseData) {
     rememberTimerStarted();
+    rememberLeaseLabel(leaseData && leaseData.label);
     waitingForLease = false;
     showPollStep();
     setPill("Timer active", "ready");
@@ -327,6 +354,32 @@
     option.addEventListener("click", updateSelectedLease);
   });
   updateSelectedLease();
+
+  const extendButton = document.getElementById("extend-button");
+  if (extendButton) {
+    extendButton.addEventListener("click", async function () {
+      extendButton.disabled = true;
+      const body = new FormData();
+      body.set("action", "lease");
+      const label = storedLeaseLabel();
+      if (label) body.set("lease", label);
+      if (cfg.token) body.set("token", cfg.token);
+      try {
+        const res = await fetch(waitURL({ host: cfg.host }), { method: "POST", body });
+        if (res.ok) {
+          const data = await res.json();
+          applyLease(data);
+          setStatus("Timer extended.", false);
+        } else {
+          setStatus("Timer extension failed.", true);
+        }
+      } catch (_) {
+        setStatus("Timer extension failed.", true);
+      } finally {
+        extendButton.disabled = false;
+      }
+    });
+  }
 
   poll()
     .then((data) => {

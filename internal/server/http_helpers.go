@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"reveille/internal/hosts"
 )
@@ -20,27 +21,25 @@ func (s *Server) hostFromRequest(r *http.Request) (hosts.Host, bool) {
 	return s.deps.Hosts.Lookup(hostName)
 }
 
-func (s *Server) waitURL(r *http.Request, host, returnTo string) string {
+func (s *Server) waitURL(w http.ResponseWriter, r *http.Request, host, returnTo string) string {
 	public := publicPath(s.deps.Config.Server.PublicPath)
 	returnTo = sanitizeReturnTo(returnTo)
 	q := url.Values{"host": {host}, "returnTo": {returnTo}}
 	if token, err := s.newWaitToken(host, returnTo); err == nil {
 		q.Set("token", token)
+		if w != nil {
+			s.setWaitCookie(w, r, token)
+		}
 	} else {
 		s.deps.Logger.Errorf("sign wait token for %s: %v", host, err)
 	}
 	return waitOrigin(r, host) + public + "/wait?" + q.Encode()
 }
 
+// waitOrigin builds the public origin for wait redirects. It defaults to
+// https because the redirect target is the public managed host.
 func waitOrigin(r *http.Request, host string) string {
 	proto := firstHeaderValue(r.Header.Get("X-Forwarded-Proto"))
-	if proto == "" {
-		if r.TLS != nil {
-			proto = "https"
-		} else {
-			proto = "https"
-		}
-	}
 	if proto != "http" && proto != "https" {
 		proto = "https"
 	}
@@ -61,6 +60,26 @@ func originalURL(r *http.Request, host hosts.Host) string {
 		uri = r.Header.Get("X-Forwarded-Uri")
 	}
 	return sanitizeReturnTo(uri)
+}
+
+const waitCookieName = "reveille_wait"
+
+// setWaitCookie stores the wait token in an HttpOnly cookie so follow-up
+// wait-control requests do not need the token in the URL.
+func (s *Server) setWaitCookie(w http.ResponseWriter, r *http.Request, token string) {
+	if token == "" {
+		return
+	}
+	proto := firstHeaderValue(r.Header.Get("X-Forwarded-Proto"))
+	http.SetCookie(w, &http.Cookie{
+		Name:     waitCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   int(waitTokenTTL / time.Second),
+		HttpOnly: true,
+		Secure:   proto != "http",
+		SameSite: http.SameSiteLaxMode,
+	})
 }
 
 func (s *Server) authorizedHost(w http.ResponseWriter, r *http.Request) (hosts.Host, waitTokenClaims, bool) {
